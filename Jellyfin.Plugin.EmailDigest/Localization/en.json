@@ -1,0 +1,12 @@
+{
+  "SectionMovies": "Movies",
+  "SectionSeries": "Series",
+  "SectionAnime": "Anime",
+  "SectionMusic": "Music",
+  "Season": "Season",
+  "NewEpisodes": "new episode(s)",
+  "EmailSubject": "Your Jellyfin Digest",
+  "Greeting": "Hello {0},",
+  "Intro": "Here's what's new since your last digest:",
+  "Footer": "This is an automated message from your Jellyfin server."
+}

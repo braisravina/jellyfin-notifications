@@ -1,0 +1,12 @@
+{
+  "SectionMovies": "Películas",
+  "SectionSeries": "Series",
+  "SectionAnime": "Anime",
+  "SectionMusic": "Música",
+  "Season": "Temporada",
+  "NewEpisodes": "episodio(s) nuevo(s)",
+  "EmailSubject": "Tu resumen de Jellyfin",
+  "Greeting": "Hola {0},",
+  "Intro": "Esto es lo nuevo desde tu último resumen:",
+  "Footer": "Este es un mensaje automático de tu servidor Jellyfin."
+}

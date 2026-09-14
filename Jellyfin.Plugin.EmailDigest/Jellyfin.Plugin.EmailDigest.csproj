@@ -35,6 +35,12 @@
   <ItemGroup>
     <None Remove="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <None Remove="Localization\en.json" />
+    <EmbeddedResource Include="Localization\en.json" />
+    <None Remove="Localization\es.json" />
+    <EmbeddedResource Include="Localization\es.json" />
+    <None Remove="Localization\gl.json" />
+    <EmbeddedResource Include="Localization\gl.json" />
   </ItemGroup>
 
 </Project>
