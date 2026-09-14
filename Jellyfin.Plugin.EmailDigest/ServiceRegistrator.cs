@@ -1,3 +1,5 @@
+using System;
+using Jellyfin.Plugin.EmailDigest.Services;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,14 +10,26 @@ namespace Jellyfin.Plugin.EmailDigest;
 /// Registers Email Digest services with Jellyfin's dependency injection container.
 /// </summary>
 /// <remarks>
-/// Discovered and invoked automatically by Jellyfin at server startup. Requires a
-/// parameterless constructor. No services are registered yet; digest, media query,
-/// email, checkpoint and preference services are added in later phases.
+/// Discovered and invoked automatically by Jellyfin at server startup, before the DI container is
+/// built and before <see cref="Plugin.Instance"/> is set. The factories below only read
+/// <see cref="Plugin.Instance"/> when a registered service is actually resolved, which happens
+/// later, after the container is built and the plugin instance exists — see
+/// <see cref="IPluginServiceRegistrator"/>. Requires a parameterless constructor. Media query,
+/// email and digest orchestration services are added in later phases.
 /// </remarks>
 public class ServiceRegistrator : IPluginServiceRegistrator
 {
     /// <inheritdoc />
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
+        serviceCollection.AddSingleton<ILocalizationService, LocalizationService>();
+        serviceCollection.AddSingleton<IUserPreferenceRepository>(_ => new UserPreferenceRepository(GetDataFolderPath()));
+        serviceCollection.AddSingleton<ICheckpointService>(_ => new CheckpointService(GetDataFolderPath()));
+    }
+
+    private static string GetDataFolderPath()
+    {
+        return Plugin.Instance?.DataFolderPath
+            ?? throw new InvalidOperationException("Email Digest plugin instance is not initialized yet.");
     }
 }
