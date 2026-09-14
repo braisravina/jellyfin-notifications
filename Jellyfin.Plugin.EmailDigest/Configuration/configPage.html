@@ -12,10 +12,39 @@
                     <div class="verticalSection">
                         <h2>Email Digest</h2>
                         <p>
-                            This is a Phase 1 skeleton page. SMTP, digest scheduling and
-                            per-user notification preferences will appear here in later
+                            Phase 2: digest scheduling basics below. SMTP settings and
+                            per-user notification management will appear here in later
                             phases of development.
                         </p>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="DigestEnabled" name="DigestEnabled" type="checkbox" is="emby-checkbox" />
+                            <span>Enable digest emails</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Master switch for the digest feature. No emails are sent while
+                            this is off, regardless of the scheduled task's own schedule.
+                        </div>
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="DefaultLanguage">Default language</label>
+                        <select is="emby-select" id="DefaultLanguage" name="DefaultLanguage" class="emby-select-withcolor emby-select">
+                            <option value="en">English</option>
+                            <option value="es">Español</option>
+                            <option value="gl">Galego</option>
+                        </select>
+                        <div class="fieldDescription">
+                            Used for a user who has not chosen their own digest language.
+                        </div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="FallbackLookbackHours">Fallback lookback (hours)</label>
+                        <input id="FallbackLookbackHours" name="FallbackLookbackHours" type="number" is="emby-input" min="0" />
+                        <div class="fieldDescription">
+                            How far back to look for "new" media on the very first digest run,
+                            before any checkpoint exists. Ignored on every later run.
+                        </div>
                     </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
@@ -34,6 +63,9 @@
                 .addEventListener('pageshow', function () {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(EmailDigestConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#DigestEnabled').checked = config.DigestEnabled;
+                        document.querySelector('#DefaultLanguage').value = config.DefaultLanguage;
+                        document.querySelector('#FallbackLookbackHours').value = config.FallbackLookbackHours;
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -42,8 +74,19 @@
                 .addEventListener('submit', function (e) {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(EmailDigestConfig.pluginUniqueId).then(function (config) {
+                        // SMTP fields are intentionally not read or written here: the generic
+                        // plugin configuration endpoint has no field-level masking, so exposing
+                        // SmtpPassword to this form would return it to the browser in plain
+                        // text on every page load. A masked, purpose-built endpoint for those
+                        // fields is added in Phase 5.
+                        config.DigestEnabled = document.querySelector('#DigestEnabled').checked;
+                        config.DefaultLanguage = document.querySelector('#DefaultLanguage').value;
+                        config.FallbackLookbackHours = parseInt(document.querySelector('#FallbackLookbackHours').value, 10) || 0;
                         ApiClient.updatePluginConfiguration(EmailDigestConfig.pluginUniqueId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
+                        }, function () {
+                            Dashboard.hideLoadingMsg();
+                            Dashboard.alert('Failed to save Email Digest settings. Check the values and try again.');
                         });
                     });
 

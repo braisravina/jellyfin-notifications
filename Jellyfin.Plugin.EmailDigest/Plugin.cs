@@ -6,6 +6,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.EmailDigest;
 
@@ -14,14 +15,18 @@ namespace Jellyfin.Plugin.EmailDigest;
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
+    private readonly ILogger<Plugin> _logger;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
     /// <param name="xmlSerializer">Instance of the <see cref="IXmlSerializer"/> interface.</param>
-    public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
+    /// <param name="logger">Instance of the <see cref="ILogger{Plugin}"/> interface.</param>
+    public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer, ILogger<Plugin> logger)
         : base(applicationPaths, xmlSerializer)
     {
+        _logger = logger;
         Instance = this;
     }
 
@@ -50,5 +55,24 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.configPage.html", GetType().Namespace)
             }
         ];
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="PluginConfigurationValidationException">
+    /// Thrown when <paramref name="configuration"/> fails validation. The invalid configuration
+    /// is rejected and not persisted; the previously saved configuration remains in effect.
+    /// </exception>
+    public override void UpdateConfiguration(BasePluginConfiguration configuration)
+    {
+        var typedConfiguration = (PluginConfiguration)configuration;
+        var errors = PluginConfigurationValidator.Validate(typedConfiguration);
+
+        if (errors.Count > 0)
+        {
+            _logger.LogWarning("Rejected Email Digest configuration update: {ErrorCount} validation error(s)", errors.Count);
+            throw new PluginConfigurationValidationException(errors);
+        }
+
+        base.UpdateConfiguration(configuration);
     }
 }

@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.EmailDigest", "Jellyfin.Plugin.EmailDigest\Jellyfin.Plugin.EmailDigest.csproj", "{62E74AD8-7DD0-4043-878B-142851EFB75F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.EmailDigest.Tests", "Jellyfin.Plugin.EmailDigest.Tests\Jellyfin.Plugin.EmailDigest.Tests.csproj", "{FB14C26A-6182-42BC-B788-FA9EC942DBE9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{62E74AD8-7DD0-4043-878B-142851EFB75F}.Release|x64.Build.0 = Release|Any CPU
 		{62E74AD8-7DD0-4043-878B-142851EFB75F}.Release|x86.ActiveCfg = Release|Any CPU
 		{62E74AD8-7DD0-4043-878B-142851EFB75F}.Release|x86.Build.0 = Release|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Debug|x64.Build.0 = Debug|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Debug|x86.Build.0 = Debug|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Release|x64.ActiveCfg = Release|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Release|x64.Build.0 = Release|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Release|x86.ActiveCfg = Release|Any CPU
+		{FB14C26A-6182-42BC-B788-FA9EC942DBE9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

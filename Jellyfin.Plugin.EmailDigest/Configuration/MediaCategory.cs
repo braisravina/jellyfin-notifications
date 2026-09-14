@@ -1,0 +1,33 @@
+namespace Jellyfin.Plugin.EmailDigest.Configuration;
+
+/// <summary>
+/// The digest section a monitored Jellyfin library is grouped under.
+/// </summary>
+/// <remarks>
+/// Jellyfin has no built-in "Anime" library type: a library's <c>CollectionType</c> is only
+/// "movies", "tvshows", "music", etc. Distinguishing Anime from Series is therefore an
+/// admin-configured mapping from a specific library to a digest category, not something derived
+/// automatically from Jellyfin metadata.
+/// </remarks>
+public enum MediaCategory
+{
+    /// <summary>
+    /// Movies.
+    /// </summary>
+    Movies = 0,
+
+    /// <summary>
+    /// TV series.
+    /// </summary>
+    Series = 1,
+
+    /// <summary>
+    /// Anime, grouped separately from Series even though Jellyfin has no distinct library type for it.
+    /// </summary>
+    Anime = 2,
+
+    /// <summary>
+    /// Music.
+    /// </summary>
+    Music = 3
+}

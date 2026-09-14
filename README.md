@@ -6,8 +6,40 @@ user, filtered strictly by what that user is authorized to see in Jellyfin.
 Replaces a standalone notifier (Docker container + JSON user mappings + cron/systemd
 timer + separate web UI) with a native Jellyfin plugin.
 
-**Status: Phase 1 (discovery and skeleton) only.** No SMTP, no media querying, no user
-preferences, no digest logic yet.
+**Status: Phase 2 (persistence and configuration) complete.** No SMTP sending, no media
+querying, and no digest orchestration yet — see Phases below.
+
+## Persistence and secrets
+
+- Global configuration (SMTP settings, digest settings, monitored libraries) is
+  persisted through Jellyfin's built-in plugin configuration mechanism
+  (`IXmlSerializer`), which writes **plain, unencrypted XML** to the server's plugin
+  configuration directory. Jellyfin provides no encrypted secret store for plugins as
+  of 10.11.8. The SMTP password field exists in the data model already but is
+  deliberately **not** exposed on the configuration page yet — the generic plugin
+  configuration API has no per-field masking, so rendering it now would return the
+  password to the browser in plain text on every page load. A masked, purpose-built
+  endpoint for SMTP fields is added in Phase 5, alongside SMTP sending itself.
+- Global configuration is validated before every save (`Plugin.UpdateConfiguration`
+  override): an invalid save is rejected and the previous configuration is kept.
+- Per-user notification preferences and the digest checkpoint are stored as this
+  plugin's own JSON files under the plugin's data folder (which is the plugin's own
+  install directory, e.g. `.../plugins/Email Digest_0.1.0.0/`), written with an
+  atomic write-temp-then-rename pattern — unlike Jellyfin's own XML config save, which
+  writes directly to the target file with no such protection.
+
+## Phases
+
+1. Discovery and skeleton — done.
+2. Persistence and configuration — done (this includes global config + validation,
+   per-user preference repository, checkpoint storage, and English/Spanish/Galician
+   localization resources).
+3. Media discovery and access control — not started.
+4. Email rendering — not started.
+5. SMTP — not started.
+6. Complete scheduled digest — not started.
+7. User self-service — not started.
+8. Packaging — not started.
 
 ## Compatibility
 
@@ -36,6 +68,16 @@ dotnet build --configuration Release
 
 Requires .NET SDK 9.0.x (see `global.json`).
 
+## Running tests
+
+```shell
+dotnet test
+```
+
+Tests never send real email and never touch a live Jellyfin server; they exercise
+plugin logic in isolation (config validation, per-user preference storage, checkpoint
+storage, localization) using temp-directory-backed fakes and in-process instances.
+
 ## Manual install on a Jellyfin 10.11.8 server
 
 1. Build in Release configuration (above).
@@ -47,8 +89,9 @@ Requires .NET SDK 9.0.x (see `global.json`).
 4. Restart the Jellyfin server.
 5. In Dashboard → Plugins, confirm "Email Digest" appears and is **not** marked
    `NotSupported`.
-6. Open the plugin's configuration page from the dashboard — it should load the
-   Phase 1 placeholder page.
+6. Open the plugin's configuration page from the dashboard — it should show the
+   digest enable switch, default language, and fallback lookback fields (no SMTP
+   fields yet — see "Persistence and secrets" above).
 7. In Dashboard → Scheduled Tasks, confirm a task named "Send Email Digest" appears
    under the "Email Digest" category, and can be run manually (it currently logs one
    line and completes immediately; it sends no email and touches no media).
