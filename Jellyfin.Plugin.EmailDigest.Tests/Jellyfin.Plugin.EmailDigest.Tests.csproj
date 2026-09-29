@@ -20,6 +20,13 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!--
+      ILibraryManager/IUserManager are large Jellyfin-owned interfaces (dozens of members each);
+      hand-writing fakes for them would mean stubbing many members the discovery tests never use.
+      Moq is scoped to faking those two interfaces only — test media items themselves are plain
+      Movie/Episode/MusicAlbum object initializers, not mocks.
+    -->
+    <PackageReference Include="Moq" Version="4.20.72" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,8 +39,13 @@
       Jellyfin server provides those assemblies at load time. There is no such host in a unit
       test run, so this project references Jellyfin.Model directly, with runtime assets included,
       purely so types like BasePluginConfiguration are actually present at test execution time.
+      Jellyfin.Controller (Movie/Episode/MusicAlbum/BoxSet/Audio, InternalItemsQuery) and
+      Jellyfin.Database.Implementations (the real User entity) are included the same way, so
+      discovery tests build real Jellyfin item/user objects rather than plugin-defined stand-ins.
     -->
     <PackageReference Include="Jellyfin.Model" Version="10.11.8" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.8" />
+    <PackageReference Include="Jellyfin.Database.Implementations" Version="10.11.8" />
   </ItemGroup>
 
 </Project>

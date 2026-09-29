@@ -14,8 +14,8 @@ namespace Jellyfin.Plugin.EmailDigest;
 /// built and before <see cref="Plugin.Instance"/> is set. The factories below only read
 /// <see cref="Plugin.Instance"/> when a registered service is actually resolved, which happens
 /// later, after the container is built and the plugin instance exists — see
-/// <see cref="IPluginServiceRegistrator"/>. Requires a parameterless constructor. Media query,
-/// email and digest orchestration services are added in later phases.
+/// <see cref="IPluginServiceRegistrator"/>. Requires a parameterless constructor. Email and
+/// digest orchestration services are added in later phases.
 /// </remarks>
 public class ServiceRegistrator : IPluginServiceRegistrator
 {
@@ -25,6 +25,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ILocalizationService, LocalizationService>();
         serviceCollection.AddSingleton<IUserPreferenceRepository>(_ => new UserPreferenceRepository(GetDataFolderPath()));
         serviceCollection.AddSingleton<ICheckpointService>(_ => new CheckpointService(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
     }
 
     private static string GetDataFolderPath()
