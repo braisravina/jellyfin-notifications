@@ -6,10 +6,11 @@ user, filtered strictly by what that user is authorized to see in Jellyfin.
 Replaces a standalone notifier (Docker container + JSON user mappings + cron/systemd
 timer + separate web UI) with a native Jellyfin plugin.
 
-**Status: Phase 4 (categorization and email rendering) implemented and unit-tested; not
-live-verified.** Discovery, the digest model and the renderers exist but nothing calls them
-yet: there is no SMTP sending and no digest orchestration. Nothing is ever sent. See Phases
-below.
+**Status: Phase 5 (secure SMTP delivery) implemented and unit-tested; not live-verified.**
+Discovery, the digest model, the renderers and an SMTP transport exist, with an
+administrator page to configure them, but nothing connects them: there is no digest
+orchestration, so **no digest is ever sent**. The only mail the plugin can send is a test
+message an administrator explicitly requests. See Phases below.
 
 ## Media discovery
 
@@ -37,7 +38,7 @@ window (`fromUtc` exclusive, `toUtc` inclusive) that a given Jellyfin user may s
   no permission map of its own. If no monitored library is accessible, no query runs at all.
 - **Library validation:** `MonitoredLibraryValidator` compares the configured ids with
   Jellyfin's libraries and reports invalid (empty), deleted/unknown and duplicate entries. It
-  is not wired into saving the configuration yet (Phase 5/6). At discovery time a deleted or
+  is not wired into saving the configuration yet (Phase 6). At discovery time a deleted or
   unknown library is skipped with a warning.
 - **Failures:** a Jellyfin failure raises `MediaDiscoveryException` rather than returning an
   empty list, so the checkpoint is never advanced past items that were not examined.
@@ -97,17 +98,155 @@ Golden files in `Jellyfin.Plugin.EmailDigest.Tests/Golden/` hold the exact expec
 en/es/gl. After an intentional wording or layout change, regenerate them with
 `UPDATE_GOLDEN=1 dotnet test` and review the diff before committing.
 
+## SMTP delivery
+
+`MailKitEmailTransport` (MailKit 4.16.0) hands one finished message to an SMTP server. It
+knows nothing about media, digests, preferences or checkpoints. **No digest is sent yet**:
+Phase 6 will connect discovery, rendering and this transport.
+
+### Settings
+
+Configured on the plugin's page in the Jellyfin dashboard (administrators only):
+
+| Setting | Notes |
+|---|---|
+| Enable SMTP | Master switch for sending through the server below |
+| Host | DNS name or IP address, no port or scheme |
+| Port | 1-65535; usually 587 for STARTTLS and 465 for implicit TLS |
+| Encryption | STARTTLS (default), implicit TLS, or None (unencrypted) |
+| Username | Optional; refused together with unencrypted SMTP |
+| Password | Write-only, managed separately (below) |
+| Sender address / name | Single lines; the address must be a full `user@domain` |
+| Timeout | 5-120 seconds (default 30), for connecting and for each step |
+
+All values are validated on save and again before use.
+
+### Encryption behaviour
+
+- **STARTTLS is mandatory, not opportunistic.** If the server does not offer it or the upgrade
+  fails, the connection fails with a TLS error and nothing is sent. It never continues in plain text.
+- **Implicit TLS** encrypts from the first byte.
+- **None** is used only when an administrator selects it. The page shows a warning, and a username
+  or password cannot be combined with it, so credentials are never sent in clear text.
+- **Certificates are always verified** with the platform defaults, including revocation checks.
+  There is deliberately no option to accept an invalid or self-signed certificate. A server with a
+  private CA must have that CA installed in the trust store of the machine or container running
+  Jellyfin.
+
+### Password storage, threat model and limits
+
+The password is held by `SmtpPasswordStore`, outside the plugin configuration, and is reachable only
+through the administrator endpoints, which can set or clear it but have **no way to read it back**.
+
+Sources, in order of preference:
+
+1. **A Docker secret (preferred).** Set `EMAILDIGEST_SMTP_PASSWORD_FILE` to the path of a file
+   containing the password (a trailing newline is ignored). It is controlled by whoever deploys
+   the container, takes precedence, and cannot be changed or cleared from the web page.
+2. **Saved from the page.** Written to `smtp-password.secret` in the plugin's folder, created
+   owner-only (`0600` on Unix) and renamed into place.
+
+What this protects against: the password reaching the browser, the generic configuration API,
+logs, URLs, error messages or browser storage; a non-administrator reading or changing it; another
+site making the browser change it.
+
+What it does **not** protect against, stated plainly:
+
+- **The saved password is plain text on disk.** File permissions restrict who can read it; they do
+  not encrypt it. Anyone who can read the plugin folder, a backup or a snapshot of it, or who
+  controls the Jellyfin process, can read it. Jellyfin provides plugins no encrypted store, and a
+  key kept beside the data would add no real protection.
+- A Docker secret is also readable by the Jellyfin process and by whoever can read the secret file
+  on the host. It avoids storing the password inside the plugin folder and in its backups, which is
+  why it is preferred.
+- **A Jellyfin administrator can redirect the stored password.** An administrator can change the
+  host to a server they control and press "Test connection"; the saved password is then sent to
+  that server (over verified TLS, so it needs a valid certificate for that name). Treat plugin
+  administrators as trusted with the SMTP account, and use a mail account that is dedicated to
+  this purpose and limited to sending.
+- Use an account used only for this plugin, so a leaked password has a small blast radius.
+
+### Administrator API and access
+
+All endpoints are under `EmailDigest/Admin` and carry Jellyfin's `RequiresElevation` policy: only an
+authenticated administrator is accepted. `GET Settings`, `PUT Settings` (no password member),
+`PUT Password` (JSON body only), `DELETE Password`, `POST TestConnection` (sends no mail), `POST
+TestEmail` (one message to an address the administrator types; at most one per five seconds) and
+`GET Strings`. Responses are not cacheable, carry no password and no raw exception text, and report
+failures as an outcome code with a localized message.
+
+CSRF: Jellyfin authenticates API calls with a token in a request header, never an ambient cookie,
+so another site cannot make a browser send an authenticated request. Nothing that changes state
+uses GET, and every action with a body accepts only `application/json`.
+
+### Delivery outcomes
+
+`Accepted` means **the SMTP server accepted the message**. It does not mean the message reached or
+was read in a mailbox: it can still bounce later or be filtered as spam.
+
+| Outcome | Typical cause and fix |
+|---|---|
+| `InvalidRequest` | A setting, address or subject is invalid; nothing was sent. Re-check the settings and that a username has a password and encryption |
+| `ConnectionFailed` | Wrong host or port, firewall, or the server is down. From the Jellyfin host or container, test the port with `nc -vz host port` |
+| `Timeout` | The server did not answer within the timeout. Check the network, or raise the timeout |
+| `TlsFailed` | The server lacks the chosen encryption, the port does not match the mode (587 with implicit TLS, or 465 with STARTTLS), or the certificate is not trusted (self-signed, wrong name, expired). Fix the certificate or install the CA; verification cannot be turned off |
+| `AuthenticationFailed` | Wrong username or password, or the server offers no login. App-specific passwords are often required |
+| `SenderRejected` / `RecipientRejected` | The server refused the address; the SMTP code is shown. Check the sender is allowed for this account |
+| `Cancelled` | The request was cancelled |
+| `UnexpectedError` | Anything else; see the Jellyfin log (only the error type is logged) |
+
+Logs record host, port, step, outcome and exception type. They never contain passwords, usernames,
+recipient addresses, display names, message content, server replies or exception messages.
+
+### Docker deployment
+
+- Do **not** change the Jellyfin image. The plugin runs in the existing one.
+- The plugin folder must contain `Jellyfin.Plugin.EmailDigest.dll` **and** `MailKit.dll`,
+  `MimeKit.dll` and `BouncyCastle.Cryptography.dll` (all produced by the Release build).
+- Preferred password delivery, as a file-based Docker secret:
+
+  ```yaml
+  services:
+    jellyfin:
+      environment:
+        - EMAILDIGEST_SMTP_PASSWORD_FILE=/run/secrets/emaildigest_smtp_password
+      secrets:
+        - emaildigest_smtp_password
+  secrets:
+    emaildigest_smtp_password:
+      file: ./secrets/emaildigest_smtp_password.txt   # readable only by the Jellyfin user
+  ```
+
+  Make sure the file inside the container is readable by the user Jellyfin runs as.
+- The container needs outbound access to the SMTP host and port.
+
+### Testing SMTP manually
+
+See `docs/phase5-live-verification.md` (disposable, reversible, no production changes).
+
+### Integration requirements for Phase 6
+
+- Build a message **per user** with `DigestRenderer`, and send it with `IEmailTransport.SendAsync` and
+  an `OutgoingEmail` for that one address. Never reuse a rendered digest or a connection across users.
+- Read the password only through `ISmtpPasswordStore.ReadAsync`, build `SmtpSettings.From(config, pw)`,
+  and never log the settings object (its `ToString` is redacted).
+- Treat only `Accepted` as success. Advance the checkpoint only after **every** intended recipient was
+  accepted, or define and document per-user handling. On `DigestRenderException`, `MediaDiscoveryException`
+  or any other outcome, do not advance it for that user's items.
+- Retries, back-off, per-user failure isolation and duplicate prevention belong to Phase 6; the
+  transport performs one bounded attempt and never retries.
+- Skip users with notifications off or an invalid address (`OutgoingEmail` is validated again).
+- Run the monitored-library validator when saving and before a run.
+- Decide where `DigestOptions` limits are configured.
+
 ## Persistence and secrets
 
 - Global configuration (SMTP settings, digest settings, monitored libraries) is
   persisted through Jellyfin's built-in plugin configuration mechanism
   (`IXmlSerializer`), which writes **plain, unencrypted XML** to the server's plugin
-  configuration directory. Jellyfin provides no encrypted secret store for plugins as
-  of 10.11.8. The SMTP password field exists in the data model already but is
-  deliberately **not** exposed on the configuration page yet — the generic plugin
-  configuration API has no per-field masking, so rendering it now would return the
-  password to the browser in plain text on every page load. A masked, purpose-built
-  endpoint for SMTP fields is added in Phase 5, alongside SMTP sending itself.
+  configuration directory, and Jellyfin's generic `GET /Plugins/{id}/Configuration`
+  returns that object verbatim as JSON. It therefore holds **no secret**: the SMTP
+  password is not part of it (see "SMTP delivery").
 - Global configuration is validated before every save (`Plugin.UpdateConfiguration`
   override): an invalid save is rejected and the previous configuration is kept.
 - Per-user notification preferences and the digest checkpoint are stored as this
@@ -126,7 +265,8 @@ en/es/gl. After an intentional wording or layout change, regenerate them with
    live-verified**. Not yet called by the scheduled task.
 4. Categorization and email rendering — implemented and unit-tested (200 tests); **not
    live-verified** and not yet called by the scheduled task. Nothing is sent.
-5. SMTP — not started.
+5. Secure SMTP delivery — implemented and unit-tested (386 tests, including a local fake SMTP
+   server); **not live-verified**. Sends nothing except an administrator-requested test message.
 6. Complete scheduled digest — not started.
 7. User self-service — not started.
 8. Packaging — not started.
@@ -166,8 +306,18 @@ dotnet test
 
 Tests never send real email and never touch a live Jellyfin server; they exercise
 plugin logic in isolation (config validation, per-user preference storage, checkpoint
-storage, localization, media discovery, library validation, digest building and rendering) using temp-directory-backed
+storage, localization, media discovery, library validation, digest building and rendering,
+SMTP transport and the administrator API) using temp-directory-backed
 fakes, mocked Jellyfin interfaces and in-process instances.
+
+Phase 5 adds tests for SMTP validation, the password store and lifecycle, the absence of any
+secret in the configuration's JSON and XML, the transport against a disposable in-process SMTP
+capture server on loopback (nothing leaves the machine; no real mail is sent), TLS enforcement and
+downgrade prevention, authentication and recipient errors, timeouts and cancellation, MIME
+structure and UTF-8, per-recipient isolation, log redaction, the administrator service and the
+controller's authorization declarations, and static checks of the administrator page. They cannot
+prove that Jellyfin enforces the authorization attribute or that the page works in the dashboard;
+that needs the live verification.
 
 Phase 4 adds tests for category tagging (including Anime versus Series), digest grouping,
 ordering and limits, wording in all three languages, HTML escaping and injection attempts,
@@ -185,17 +335,19 @@ Jellyfin failure.
 2. Create a folder named `Email Digest_0.1.0.0` (or similar) under the server's
    plugins directory (e.g. `/var/lib/jellyfin/plugins` on Linux, or
    `%ProgramData%\Jellyfin\Server\plugins` on Windows).
-3. Copy `Jellyfin.Plugin.EmailDigest.dll` (and `.pdb` if you want debug symbols) from
-   `Jellyfin.Plugin.EmailDigest/bin/Release/net9.0/` into that folder.
+3. Copy `Jellyfin.Plugin.EmailDigest.dll`, `MailKit.dll`, `MimeKit.dll` and
+   `BouncyCastle.Cryptography.dll` (and `.pdb` if you want debug symbols) from
+   `Jellyfin.Plugin.EmailDigest/bin/Release/net9.0/` into that folder. The last three are
+   the SMTP library; without them the plugin cannot send.
 4. Restart the Jellyfin server.
 5. In Dashboard → Plugins, confirm "Email Digest" appears and is **not** marked
    `NotSupported`.
-6. Open the plugin's configuration page from the dashboard — it should show the
-   digest enable switch, default language, and fallback lookback fields (no SMTP
-   fields yet — see "Persistence and secrets" above).
+6. Open the plugin's configuration page from the dashboard — it should show the digest
+   settings, the SMTP server settings, a password section and the tests (see "SMTP delivery").
 7. In Dashboard → Scheduled Tasks, confirm a task named "Send Email Digest" appears
    under the "Email Digest" category, and can be run manually (it currently logs one
    line and completes immediately; it sends no email and touches no media).
 
-This has not yet been verified against a live 10.11.8 server as part of this pass —
-see the Phase 1 report for what was and wasn't verified.
+Only the Phase 1 skeleton has been verified against a live 10.11.8 server. Nothing added
+since, including the administrator page and its API, has been run on a real server; see
+`docs/phase3-live-verification.md` and `docs/phase5-live-verification.md`.
