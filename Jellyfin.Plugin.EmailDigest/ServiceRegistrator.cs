@@ -1,4 +1,5 @@
 using System;
+using Jellyfin.Plugin.EmailDigest.Digest;
 using Jellyfin.Plugin.EmailDigest.Services;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
@@ -25,6 +26,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ILocalizationService, LocalizationService>();
         serviceCollection.AddSingleton<IUserPreferenceRepository>(_ => new UserPreferenceRepository(GetDataFolderPath()));
         serviceCollection.AddSingleton<ICheckpointService>(_ => new CheckpointService(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IDigestBuilder, DigestBuilder>();
         serviceCollection.AddSingleton<IMonitoredLibraryValidator, MonitoredLibraryValidator>();
         serviceCollection.AddSingleton<ILibraryAccessResolver, JellyfinLibraryAccessResolver>();
         serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
