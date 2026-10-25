@@ -1,5 +1,6 @@
 using System;
 using Jellyfin.Plugin.EmailDigest.Admin;
+using Jellyfin.Plugin.EmailDigest.Delivery;
 using Jellyfin.Plugin.EmailDigest.Digest;
 using Jellyfin.Plugin.EmailDigest.Email;
 using Jellyfin.Plugin.EmailDigest.Services;
@@ -27,6 +28,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<ILocalizationService, LocalizationService>();
         serviceCollection.AddSingleton<IUserPreferenceRepository>(_ => new UserPreferenceRepository(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IDeliveryStateStore>(_ => new DeliveryStateStore(GetDataFolderPath(), TimeProvider.System));
         serviceCollection.AddSingleton<ICheckpointService>(_ => new CheckpointService(GetDataFolderPath()));
         serviceCollection.AddSingleton<IDigestBuilder, DigestBuilder>();
         serviceCollection.AddSingleton<IDigestRenderer, DigestRenderer>();
