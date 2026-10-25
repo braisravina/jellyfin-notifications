@@ -29,6 +29,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IDigestBuilder, DigestBuilder>();
         serviceCollection.AddSingleton<IDigestRenderer, DigestRenderer>();
         serviceCollection.AddSingleton<IMonitoredLibraryValidator, MonitoredLibraryValidator>();
+        serviceCollection.AddSingleton<ISmtpPasswordStore>(_ => new SmtpPasswordStore(GetDataFolderPath()));
         serviceCollection.AddSingleton<ILibraryAccessResolver, JellyfinLibraryAccessResolver>();
         serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
     }

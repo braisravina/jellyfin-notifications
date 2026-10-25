@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Jellyfin.Plugin.EmailDigest.Configuration;
 using Xunit;
 
@@ -154,5 +155,112 @@ public class PluginConfigurationValidatorTests
         var errors = PluginConfigurationValidator.Validate(config);
 
         Assert.Empty(errors);
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(121)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Validate_TimeoutOutOfRange_ReportsError(int seconds)
+    {
+        var config = ValidConfiguration();
+        config.SmtpTimeoutSeconds = seconds;
+
+        Assert.Contains(PluginConfigurationValidator.Validate(config), e => e.Contains("SmtpTimeoutSeconds", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(30)]
+    [InlineData(120)]
+    public void Validate_TimeoutInRange_HasNoError(int seconds)
+    {
+        var config = ValidConfiguration();
+        config.SmtpTimeoutSeconds = seconds;
+
+        Assert.Empty(PluginConfigurationValidator.Validate(config));
+    }
+
+    [Theory]
+    [InlineData("smtp.example.com", true)]
+    [InlineData("mail", true)]
+    [InlineData("10.0.0.5", true)]
+    [InlineData("::1", true)]
+    [InlineData("smtp.example.com\r\nRCPT TO:<x@y.z>", false)]
+    [InlineData("smtp example.com", false)]
+    [InlineData("-bad.example.com", false)]
+    [InlineData("exa_mple.com", false)]
+    [InlineData("smtp.example.com:25", false)]
+    [InlineData("http://smtp.example.com", false)]
+    public void Validate_Host(string host, bool valid)
+    {
+        var config = ValidConfiguration();
+        config.SmtpHost = host;
+
+        var errors = PluginConfigurationValidator.Validate(config);
+
+        Assert.Equal(valid, !errors.Any(e => e.Contains("SmtpHost", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Validate_UnencryptedWithoutCredentials_IsAllowedBecauseTheAdministratorChoseIt()
+    {
+        var config = ValidConfiguration();
+        config.SmtpSecurity = SmtpSecurityMode.None;
+        config.SmtpPort = 25;
+
+        Assert.Empty(PluginConfigurationValidator.Validate(config));
+    }
+
+    [Fact]
+    public void Validate_UnencryptedWithUsername_IsRejectedSoCredentialsAreNeverSentInClear()
+    {
+        var config = ValidConfiguration();
+        config.SmtpSecurity = SmtpSecurityMode.None;
+        config.SmtpUsername = "mailer";
+
+        Assert.Contains(PluginConfigurationValidator.Validate(config), e => e.Contains("unencrypted", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(SmtpSecurityMode.StartTls)]
+    [InlineData(SmtpSecurityMode.ImplicitTls)]
+    public void Validate_EncryptedWithUsername_IsAllowed(SmtpSecurityMode mode)
+    {
+        var config = ValidConfiguration();
+        config.SmtpSecurity = mode;
+        config.SmtpUsername = "mailer";
+
+        Assert.Empty(PluginConfigurationValidator.Validate(config));
+    }
+
+    [Theory]
+    [InlineData("Jellyfin\r\nBcc: x@evil.example")]
+    [InlineData("name\nwith newline")]
+    public void Validate_SenderDisplayNameWithLineBreak_IsRejected(string name)
+    {
+        var config = ValidConfiguration();
+        config.SenderDisplayName = name;
+
+        Assert.Contains(PluginConfigurationValidator.Validate(config), e => e.Contains("SenderDisplayName", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_UsernameWithLineBreak_IsRejected()
+    {
+        var config = ValidConfiguration();
+        config.SmtpUsername = "user\nname";
+
+        Assert.Contains(PluginConfigurationValidator.Validate(config), e => e.Contains("SmtpUsername", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_SenderAddressWithLineBreak_IsRejected()
+    {
+        var config = ValidConfiguration();
+        config.SenderEmailAddress = "a@b.co\nBcc: x@y.zz";
+
+        Assert.NotEmpty(PluginConfigurationValidator.Validate(config));
     }
 }

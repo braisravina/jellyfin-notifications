@@ -30,6 +30,31 @@ public static class PluginConfigurationValidator
             errors.Add("SmtpSecurity is not a recognized value.");
         }
 
+        if (configuration.SmtpTimeoutSeconds is < ConfigurationValidation.MinTimeoutSeconds or > ConfigurationValidation.MaxTimeoutSeconds)
+        {
+            errors.Add($"SmtpTimeoutSeconds must be between {ConfigurationValidation.MinTimeoutSeconds} and {ConfigurationValidation.MaxTimeoutSeconds}.");
+        }
+
+        if (!string.IsNullOrEmpty(configuration.SmtpHost) && !ConfigurationValidation.IsValidHost(configuration.SmtpHost))
+        {
+            errors.Add("SmtpHost must be a valid host name or IP address.");
+        }
+
+        if (!string.IsNullOrEmpty(configuration.SmtpUsername) && !ConfigurationValidation.IsValidSingleLine(configuration.SmtpUsername, 256))
+        {
+            errors.Add("SmtpUsername must be a single line of at most 256 characters.");
+        }
+
+        if (!string.IsNullOrEmpty(configuration.SmtpUsername) && configuration.SmtpSecurity == SmtpSecurityMode.None)
+        {
+            errors.Add("SmtpUsername cannot be used with unencrypted SMTP: credentials would be sent in clear text. Choose STARTTLS or implicit TLS.");
+        }
+
+        if (!ConfigurationValidation.IsValidSingleLine(configuration.SenderDisplayName, 100))
+        {
+            errors.Add("SenderDisplayName must be a single line of at most 100 characters.");
+        }
+
         if (configuration.SmtpEnabled)
         {
             if (string.IsNullOrWhiteSpace(configuration.SmtpHost))

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.EmailDigest.Configuration;
@@ -8,6 +9,16 @@ namespace Jellyfin.Plugin.EmailDigest.Configuration;
 /// </summary>
 public static partial class ConfigurationValidation
 {
+    /// <summary>
+    /// Gets the smallest accepted SMTP timeout, in seconds.
+    /// </summary>
+    public const int MinTimeoutSeconds = 5;
+
+    /// <summary>
+    /// Gets the largest accepted SMTP timeout, in seconds.
+    /// </summary>
+    public const int MaxTimeoutSeconds = 120;
+
     /// <summary>
     /// Checks whether a string is a plausible email address.
     /// </summary>
@@ -31,6 +42,35 @@ public static partial class ConfigurationValidation
     {
         return port is > 0 and <= 65535;
     }
+
+    /// <summary>
+    /// Checks whether a string is a plausible host name or IP address.
+    /// </summary>
+    /// <param name="host">The candidate host.</param>
+    /// <returns><see langword="true"/> for a DNS host name or an IP address literal.</returns>
+    public static bool IsValidHost(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host) || host.Length > 253)
+        {
+            return false;
+        }
+
+        return System.Net.IPAddress.TryParse(host, out _) || HostPattern().IsMatch(host);
+    }
+
+    /// <summary>
+    /// Checks that a value has no control characters (so no line breaks) and a bounded length.
+    /// </summary>
+    /// <param name="value">The value; null counts as empty and is accepted.</param>
+    /// <param name="maxLength">The maximum length.</param>
+    /// <returns><see langword="true"/> when the value is a single line within the limit.</returns>
+    public static bool IsValidSingleLine(string? value, int maxLength)
+    {
+        return value is null || (value.Length <= maxLength && !value.Any(char.IsControl));
+    }
+
+    [GeneratedRegex(@"^(?=.{1,253}$)([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$")]
+    private static partial Regex HostPattern();
 
     [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
     private static partial Regex EmailPattern();

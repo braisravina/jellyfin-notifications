@@ -9,12 +9,11 @@ namespace Jellyfin.Plugin.EmailDigest.Configuration;
 /// </summary>
 /// <remarks>
 /// Persisted by Jellyfin's built-in <c>IXmlSerializer</c> as plain, unencrypted XML under the
-/// server's plugin configuration directory. There is no Jellyfin-provided encrypted secret store
-/// for plugins as of 10.11.8, so <see cref="SmtpPassword"/> is stored in plaintext at rest — see
-/// the README for the operational implications. <see cref="SmtpHost"/> through
-/// <see cref="SenderDisplayName"/> define the data shape now (Phase 2); the admin UI for them,
-/// including password masking, is added in Phase 5 alongside actual SMTP sending, so the fields
-/// are never rendered to the browser in the interim.
+/// server's plugin configuration directory, and returned verbatim, as JSON, by Jellyfin's generic
+/// <c>GET /Plugins/{id}/Configuration</c> endpoint. It therefore must never hold a secret: the SMTP
+/// password is deliberately not a property of this class and lives in
+/// <see cref="Services.ISmtpPasswordStore"/>, reachable only through the purpose-built
+/// administrator endpoints. Everything here is safe to show to an administrator's browser.
 /// </remarks>
 public class PluginConfiguration : BasePluginConfiguration
 {
@@ -28,9 +27,9 @@ public class PluginConfiguration : BasePluginConfiguration
         SmtpPort = 587;
         SmtpSecurity = SmtpSecurityMode.StartTls;
         SmtpUsername = string.Empty;
-        SmtpPassword = string.Empty;
         SenderEmailAddress = string.Empty;
         SenderDisplayName = "Jellyfin";
+        SmtpTimeoutSeconds = 30;
 
         DigestEnabled = false;
         DefaultLanguage = SupportedLanguages.Default;
@@ -63,13 +62,9 @@ public class PluginConfiguration : BasePluginConfiguration
     public string SmtpUsername { get; set; }
 
     /// <summary>
-    /// Gets or sets the SMTP authentication password.
+    /// Gets or sets the SMTP connect and send timeout, in seconds.
     /// </summary>
-    /// <remarks>
-    /// Stored in plaintext XML (see class remarks). Not yet exposed on the configuration page;
-    /// masked read/write access is added in Phase 5.
-    /// </remarks>
-    public string SmtpPassword { get; set; }
+    public int SmtpTimeoutSeconds { get; set; }
 
     /// <summary>
     /// Gets or sets the sender email address digests are sent from.
