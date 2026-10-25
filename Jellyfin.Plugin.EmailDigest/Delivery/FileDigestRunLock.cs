@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 
@@ -18,10 +19,11 @@ public sealed class FileDigestRunLock : IDigestRunLock
 {
     private const string FileName = "digest-run.lock";
 
-    // One run at a time inside this process, whatever the file system does.
-    private static readonly SemaphoreSlim ProcessLock = new(1, 1);
+    // One run at a time per data folder inside this process, whatever the file system does.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ProcessLocks = new(StringComparer.Ordinal);
 
     private readonly string _path;
+    private readonly SemaphoreSlim _processLock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileDigestRunLock"/> class.
@@ -30,13 +32,14 @@ public sealed class FileDigestRunLock : IDigestRunLock
     public FileDigestRunLock(string dataFolderPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataFolderPath);
-        _path = Path.Combine(dataFolderPath, FileName);
+        _path = Path.GetFullPath(Path.Combine(dataFolderPath, FileName));
+        _processLock = ProcessLocks.GetOrAdd(_path, _ => new SemaphoreSlim(1, 1));
     }
 
     /// <inheritdoc />
     public IDisposable? TryAcquire()
     {
-        if (!ProcessLock.Wait(0))
+        if (!_processLock.Wait(0))
         {
             return null;
         }
@@ -45,28 +48,30 @@ public sealed class FileDigestRunLock : IDigestRunLock
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var stream = new FileStream(_path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            return new Handle(stream);
+            return new Handle(stream, _processLock);
         }
         catch (IOException)
         {
             // Another process holds the file lock.
-            ProcessLock.Release();
+            _processLock.Release();
             return null;
         }
         catch
         {
-            ProcessLock.Release();
+            _processLock.Release();
             throw;
         }
     }
 
     private sealed class Handle : IDisposable
     {
+        private readonly SemaphoreSlim _processLock;
         private FileStream? _stream;
 
-        public Handle(FileStream stream)
+        public Handle(FileStream stream, SemaphoreSlim processLock)
         {
             _stream = stream;
+            _processLock = processLock;
         }
 
         public void Dispose()
@@ -78,7 +83,7 @@ public sealed class FileDigestRunLock : IDigestRunLock
             }
 
             stream.Dispose();
-            ProcessLock.Release();
+            _processLock.Release();
         }
     }
 }

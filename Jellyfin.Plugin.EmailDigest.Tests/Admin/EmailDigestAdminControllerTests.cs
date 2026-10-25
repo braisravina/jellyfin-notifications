@@ -124,7 +124,7 @@ public sealed class EmailDigestAdminControllerTests
             new Jellyfin.Plugin.EmailDigest.Services.LocalizationService(),
             TimeProvider.System,
             NullLogger<SmtpAdminService>.Instance);
-        var controller = new EmailDigestAdminController(service, null!, NullLogger<EmailDigestAdminController>.Instance);
+        var controller = new EmailDigestAdminController(service, null!, null!, NullLogger<EmailDigestAdminController>.Instance);
 
         var result = await controller.GetSettings();
 

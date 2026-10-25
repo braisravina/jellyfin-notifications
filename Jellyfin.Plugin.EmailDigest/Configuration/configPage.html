@@ -14,6 +14,12 @@
                     <p data-i18n="AdminIntro"></p>
                 </div>
 
+                <div class="verticalSection">
+                    <h3 data-i18n="AdminSectionStatus"></h3>
+                    <div id="StatusMode" class="fieldDescription" role="status"></div>
+                    <div id="StatusLastRun" class="fieldDescription" role="status"></div>
+                </div>
+
                 <form id="DigestForm">
                     <h3 data-i18n="AdminSectionDigest"></h3>
                     <div class="checkboxContainer checkboxContainer-withDescription">
@@ -349,6 +355,34 @@
                     say('#LibraryMissing', missing.length ? t('AdminLibraryMissing') + ' (' + missing.length + ')' : '');
                 }
 
+                function template(text, values) {
+                    return text.replace(/\{(\d+)\}/g, function (match, index) { return values[Number(index)]; });
+                }
+
+                function pascalCode(code) {
+                    return (code || '').split('-').map(function (part) { return part.charAt(0).toUpperCase() + part.slice(1); }).join('');
+                }
+
+                // Counts and fixed phrases only: the status never contains names, addresses or titles.
+                function renderStatus(status) {
+                    say('#StatusMode', t('AdminStatusMode' + status.Mode));
+                    var last = status.LastRun;
+                    if (!last) {
+                        say('#StatusLastRun', t('AdminStatusNoRun'));
+                        return;
+                    }
+                    var lines = [
+                        t('AdminStatusLastRun') + ': ' + t('AdminStatusOutcome' + last.Outcome) + ' - ' + new Date(last.StartedUtc).toLocaleString()
+                    ];
+                    if (last.Reason) { lines.push(t('AdminReason' + pascalCode(last.Reason))); }
+                    lines.push(template(t('AdminStatusCounts'), [
+                        last.UsersEvaluated, last.UsersSkipped, last.MessagesAccepted, last.MessagesFailed,
+                        last.MessagesUncertain, last.UsersWithNoNewMedia, last.DigestsRenderedDryRun, last.UsersNotAttempted
+                    ]));
+                    if (last.NeedsAttention) { lines.push(t('AdminStatusAttention')); }
+                    say('#StatusLastRun', lines.join(' '), last.NeedsAttention);
+                }
+
                 function load() {
                     Dashboard.showLoadingMsg();
                     var lang = encodeURIComponent(language());
@@ -358,7 +392,8 @@
                         return Promise.all([
                             ApiClient.getPluginConfiguration(pluginId),
                             api('GET', 'Settings'),
-                            api('GET', 'Libraries')
+                            api('GET', 'Libraries'),
+                            api('GET', 'Status')
                         ]);
                     }).then(function (results) {
                         var config = results[0];
@@ -371,6 +406,7 @@
                         $('#MaxEpisodesPerSeries').value = config.MaxEpisodesPerSeries;
                         fillSmtp(results[1]);
                         renderLibraries(results[2]);
+                        renderStatus(results[3]);
                         Dashboard.hideLoadingMsg();
                     }).catch(function () {
                         Dashboard.hideLoadingMsg();

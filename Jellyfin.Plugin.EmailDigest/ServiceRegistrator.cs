@@ -40,6 +40,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IEmailTransport, MailKitEmailTransport>();
         serviceCollection.AddSingleton<ISmtpConfigurationAccessor, PluginConfigurationAccessor>();
         serviceCollection.AddSingleton<LibraryAdminService>();
+        serviceCollection.AddSingleton<StatusAdminService>();
         serviceCollection.AddSingleton(provider => new DigestRunner(
             provider.GetRequiredService<ISmtpConfigurationAccessor>(),
             provider.GetRequiredService<IMonitoredLibraryValidator>(),

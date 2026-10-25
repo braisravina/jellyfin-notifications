@@ -38,6 +38,7 @@ public class EmailDigestAdminController : ControllerBase
 {
     private readonly SmtpAdminService _service;
     private readonly LibraryAdminService _libraries;
+    private readonly StatusAdminService _status;
     private readonly ILogger<EmailDigestAdminController> _logger;
 
     /// <summary>
@@ -45,9 +46,11 @@ public class EmailDigestAdminController : ControllerBase
     /// </summary>
     /// <param name="service">The SMTP administrator service.</param>
     /// <param name="libraries">The library administrator service.</param>
+    /// <param name="status">The status service.</param>
     /// <param name="logger">The logger.</param>
-    public EmailDigestAdminController(SmtpAdminService service, LibraryAdminService libraries, ILogger<EmailDigestAdminController> logger)
+    public EmailDigestAdminController(SmtpAdminService service, LibraryAdminService libraries, StatusAdminService status, ILogger<EmailDigestAdminController> logger)
     {
+        _status = status;
         _service = service;
         _libraries = libraries;
         _logger = logger;
@@ -156,6 +159,17 @@ public class EmailDigestAdminController : ControllerBase
     public Task<IActionResult> UpdateLibraries([FromBody] LibrariesUpdate? update)
     {
         return RunAsync(() => Task.FromResult(_libraries.UpdateLibraries(update)));
+    }
+
+    /// <summary>
+    /// Gets whether the digest would run, and what the last run did.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    /// <returns>The status.</returns>
+    [HttpGet("Status")]
+    public Task<IActionResult> GetStatus(CancellationToken cancellationToken)
+    {
+        return RunAsync(() => _status.GetStatusAsync(cancellationToken));
     }
 
     private async Task<IActionResult> RunAsync(Func<Task<AdminResponse>> action)
