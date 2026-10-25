@@ -8,6 +8,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <!-- Copy MailKit and its dependencies next to the plugin DLL so they can be deployed with it. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,9 +29,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      SMTP client and MIME builder. Not part of Jellyfin, so its assemblies (MailKit, MimeKit,
+      BouncyCastle.Cryptography) must be deployed next to the plugin DLL, unlike the Jellyfin
+      packages above whose runtime assets are excluded because the server provides them.
+    -->
+    <PackageReference Include="MailKit" Version="4.16.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="SerilogAnalyzer" Version="0.15.0" PrivateAssets="All" />
     <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556" PrivateAssets="All" />
     <PackageReference Include="SmartAnalyzers.MultithreadingAnalyzer" Version="1.1.31" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets the tests inject a certificate validator for a local fake SMTP server. -->
+    <InternalsVisibleTo Include="Jellyfin.Plugin.EmailDigest.Tests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,6 @@
 using System;
 using Jellyfin.Plugin.EmailDigest.Digest;
+using Jellyfin.Plugin.EmailDigest.Email;
 using Jellyfin.Plugin.EmailDigest.Services;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
@@ -30,6 +31,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IDigestRenderer, DigestRenderer>();
         serviceCollection.AddSingleton<IMonitoredLibraryValidator, MonitoredLibraryValidator>();
         serviceCollection.AddSingleton<ISmtpPasswordStore>(_ => new SmtpPasswordStore(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IEmailTransport, MailKitEmailTransport>();
         serviceCollection.AddSingleton<ILibraryAccessResolver, JellyfinLibraryAccessResolver>();
         serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
     }
