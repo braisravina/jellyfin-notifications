@@ -97,66 +97,73 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var topParentIds = ResolveAccessibleTopParentIds(user, monitoredLibraries);
-        if (topParentIds.Length == 0)
+        var accessibleLibraries = ResolveAccessibleLibraries(user, monitoredLibraries);
+        if (accessibleLibraries.Count == 0)
         {
             return Task.FromResult(Empty);
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-
-        IReadOnlyList<BaseItem> items;
-        try
-        {
-            var query = new InternalItemsQuery(user)
-            {
-                Recursive = true,
-                IsVirtualItem = false,
-                IncludeItemTypes = SupportedKinds,
-                TopParentIds = topParentIds,
-                MinDateCreated = fromUtc.UtcDateTime,
-                DtoOptions = new DtoOptions(false)
-            };
-
-            items = _libraryManager.GetItemList(query);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Jellyfin failed while discovering media for user {UserId}.", userId);
-            throw new MediaDiscoveryException($"Jellyfin failed while discovering media for user {userId}.", ex);
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
         var results = new List<DiscoveredMediaItem>();
         var seenIds = new HashSet<Guid>();
 
-        foreach (var item in items)
+        // One query per accessible library (not per item), so every result is tagged with the
+        // library it came from and that library's configured category.
+        foreach (var (library, topParentIds) in accessibleLibraries)
         {
-            // Jellyfin stores DateCreated in UTC; SpecifyKind guards against an Unspecified Kind
-            // being misread as local time.
-            var createdUtc = new DateTimeOffset(DateTime.SpecifyKind(item.DateCreated, DateTimeKind.Utc));
-            if (createdUtc <= fromUtc || createdUtc > toUtc)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            IReadOnlyList<BaseItem> items;
+            try
             {
-                continue;
+                var query = new InternalItemsQuery(user)
+                {
+                    Recursive = true,
+                    IsVirtualItem = false,
+                    IncludeItemTypes = SupportedKinds,
+                    TopParentIds = topParentIds,
+                    MinDateCreated = fromUtc.UtcDateTime,
+                    DtoOptions = new DtoOptions(false)
+                };
+
+                items = _libraryManager.GetItemList(query);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Jellyfin failed while discovering media for user {UserId}.", userId);
+                throw new MediaDiscoveryException($"Jellyfin failed while discovering media for user {userId}.", ex);
             }
 
-            if (!seenIds.Add(item.Id))
-            {
-                continue;
-            }
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var discovered = item switch
+            foreach (var item in items)
             {
-                Movie movie => Normalize(movie, createdUtc),
-                Episode episode => Normalize(episode, createdUtc),
-                MusicAlbum album => Normalize(album, createdUtc),
-                _ => null
-            };
+                // Jellyfin stores DateCreated in UTC; SpecifyKind guards against an Unspecified Kind
+                // being misread as local time.
+                var createdUtc = new DateTimeOffset(DateTime.SpecifyKind(item.DateCreated, DateTimeKind.Utc));
+                if (createdUtc <= fromUtc || createdUtc > toUtc)
+                {
+                    continue;
+                }
 
-            if (discovered is not null)
-            {
-                results.Add(discovered);
+                if (!seenIds.Add(item.Id))
+                {
+                    continue;
+                }
+
+                var discovered = item switch
+                {
+                    Movie movie => Normalize(movie, createdUtc),
+                    Episode episode => Normalize(episode, createdUtc),
+                    MusicAlbum album => Normalize(album, createdUtc),
+                    _ => null
+                };
+
+                if (discovered is not null)
+                {
+                    discovered.LibraryId = library.LibraryId;
+                    discovered.Category = library.Category;
+                    results.Add(discovered);
+                }
             }
         }
 
@@ -170,12 +177,21 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
         return Task.FromResult<IReadOnlyList<DiscoveredMediaItem>>(results);
     }
 
-    private Guid[] ResolveAccessibleTopParentIds(User user, IReadOnlyList<MonitoredLibrary> monitoredLibraries)
+    private List<(MonitoredLibrary Library, Guid[] TopParentIds)> ResolveAccessibleLibraries(User user, IReadOnlyList<MonitoredLibrary> monitoredLibraries)
     {
-        var topParentIds = new HashSet<Guid>();
+        var accessible = new List<(MonitoredLibrary, Guid[])>();
+        var seenLibraries = new HashSet<Guid>();
 
-        foreach (var libraryId in monitoredLibraries.Select(library => library.LibraryId).Distinct())
+        foreach (var library in monitoredLibraries)
         {
+            var libraryId = library.LibraryId;
+
+            // A library listed twice keeps its first entry (and so its first category).
+            if (!seenLibraries.Add(libraryId))
+            {
+                continue;
+            }
+
             LibraryAccess access;
             try
             {
@@ -190,7 +206,12 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
             switch (access.Status)
             {
                 case LibraryAccessStatus.Accessible:
-                    topParentIds.UnionWith(access.TopParentIds.Where(id => id != Guid.Empty));
+                    var topParentIds = access.TopParentIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+                    if (topParentIds.Length > 0)
+                    {
+                        accessible.Add((library, topParentIds));
+                    }
+
                     break;
                 case LibraryAccessStatus.NotFound:
                 case LibraryAccessStatus.NotLibrary:
@@ -205,7 +226,7 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
             }
         }
 
-        return topParentIds.ToArray();
+        return accessible;
     }
 
     private static DiscoveredMediaItem Normalize(Movie movie, DateTimeOffset createdUtc)

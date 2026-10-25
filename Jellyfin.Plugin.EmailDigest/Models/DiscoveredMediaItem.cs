@@ -1,4 +1,5 @@
 using System;
+using Jellyfin.Plugin.EmailDigest.Configuration;
 
 namespace Jellyfin.Plugin.EmailDigest.Models;
 
@@ -19,6 +20,18 @@ public class DiscoveredMediaItem
     /// Gets or sets the stable Jellyfin item id.
     /// </summary>
     public Guid ItemId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the stable id of the monitored library this item was found in. Library ids
+    /// are used rather than names because administrators can rename libraries.
+    /// </summary>
+    public Guid LibraryId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the digest category, taken from the administrator's configured mapping for
+    /// <see cref="LibraryId"/>. Never inferred from the item type or the library's name.
+    /// </summary>
+    public MediaCategory Category { get; set; }
 
     /// <summary>
     /// Gets or sets the normalized media kind.

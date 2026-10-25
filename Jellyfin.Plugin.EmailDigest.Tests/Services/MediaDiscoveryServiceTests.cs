@@ -272,6 +272,121 @@ public sealed class MediaDiscoveryServiceTests
         Assert.Single(result);
     }
 
+    // Category tagging: the category comes only from the configured library mapping.
+
+    private static Episode MakeEpisode(string name = "Pilot")
+    {
+        return new Episode { Id = Guid.NewGuid(), Name = name, DateCreated = FromUtc.AddHours(1).UtcDateTime, SeriesName = "Some Show" };
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_EpisodeFromAnimeLibrary_ClassifiedAsAnimeNotSeries()
+    {
+        var animeLibrary = Guid.NewGuid();
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem> { MakeEpisode() });
+        var libraries = new List<MonitoredLibrary> { new() { LibraryId = animeLibrary, Category = MediaCategory.Anime } };
+
+        var result = await service.DiscoverAsync(user.Id, libraries, FromUtc, ToUtc, CancellationToken.None);
+
+        var item = Assert.Single(result);
+        Assert.Equal(DiscoveredMediaItemType.Episode, item.ItemType);
+        Assert.Equal(MediaCategory.Anime, item.Category);
+        Assert.NotEqual(MediaCategory.Series, item.Category);
+        Assert.Equal(animeLibrary, item.LibraryId);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_SameItemTypeInDifferentLibraries_TaggedWithEachLibrarysCategory()
+    {
+        var seriesLibrary = Guid.NewGuid();
+        var animeLibrary = Guid.NewGuid();
+        var seriesEpisode = MakeEpisode("Series ep");
+        var animeEpisode = MakeEpisode("Anime ep");
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        // The default fake resolver maps each library to a TopParentId equal to its own id.
+        libraryManager
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.TopParentIds.Contains(seriesLibrary))))
+            .Returns(new List<BaseItem> { seriesEpisode });
+        libraryManager
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.TopParentIds.Contains(animeLibrary))))
+            .Returns(new List<BaseItem> { animeEpisode });
+        var libraries = new List<MonitoredLibrary>
+        {
+            new() { LibraryId = seriesLibrary, Category = MediaCategory.Series },
+            new() { LibraryId = animeLibrary, Category = MediaCategory.Anime }
+        };
+
+        var result = await service.DiscoverAsync(user.Id, libraries, FromUtc, ToUtc, CancellationToken.None);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(MediaCategory.Series, result.Single(i => i.ItemId == seriesEpisode.Id).Category);
+        Assert.Equal(MediaCategory.Anime, result.Single(i => i.ItemId == animeEpisode.Id).Category);
+        libraryManager.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Exactly(2));
+    }
+
+    [Theory]
+    [InlineData(MediaCategory.Documentaries)]
+    [InlineData(MediaCategory.Other)]
+    [InlineData(MediaCategory.Music)]
+    public async Task DiscoverAsync_ConfiguredCategory_IsCopiedToItems(MediaCategory category)
+    {
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem> { MakeMovie() });
+        var libraries = new List<MonitoredLibrary> { new() { LibraryId = LibraryId, Category = category } };
+
+        var result = await service.DiscoverAsync(user.Id, libraries, FromUtc, ToUtc, CancellationToken.None);
+
+        Assert.Equal(category, Assert.Single(result).Category);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_ItemReturnedForTwoLibraries_KeptOnceUnderFirstConfiguredLibrary()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var movie = MakeMovie();
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem> { movie });
+        var libraries = new List<MonitoredLibrary>
+        {
+            new() { LibraryId = first, Category = MediaCategory.Movies },
+            new() { LibraryId = second, Category = MediaCategory.Documentaries }
+        };
+
+        var result = await service.DiscoverAsync(user.Id, libraries, FromUtc, ToUtc, CancellationToken.None);
+
+        var item = Assert.Single(result);
+        Assert.Equal(first, item.LibraryId);
+        Assert.Equal(MediaCategory.Movies, item.Category);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_SameLibraryConfiguredTwiceWithDifferentCategories_FirstEntryWins()
+    {
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem> { MakeMovie() });
+        var libraries = new List<MonitoredLibrary>
+        {
+            new() { LibraryId = LibraryId, Category = MediaCategory.Documentaries },
+            new() { LibraryId = LibraryId, Category = MediaCategory.Movies }
+        };
+
+        var result = await service.DiscoverAsync(user.Id, libraries, FromUtc, ToUtc, CancellationToken.None);
+
+        Assert.Equal(MediaCategory.Documentaries, Assert.Single(result).Category);
+    }
+
     // 6-10: media classification — the discovery layer rejects unsupported types before
     // returning results, even beyond what the query's IncludeItemTypes already filters.
 
