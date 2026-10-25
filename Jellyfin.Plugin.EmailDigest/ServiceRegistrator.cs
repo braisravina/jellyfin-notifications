@@ -28,6 +28,9 @@ public class ServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<ILocalizationService, LocalizationService>();
         serviceCollection.AddSingleton<IUserPreferenceRepository>(_ => new UserPreferenceRepository(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IUserDirectory, JellyfinUserDirectory>();
+        serviceCollection.AddSingleton<IRunSummaryStore>(_ => new RunSummaryStore(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IDigestRunLock>(_ => new FileDigestRunLock(GetDataFolderPath()));
         serviceCollection.AddSingleton<IDeliveryStateStore>(_ => new DeliveryStateStore(GetDataFolderPath(), TimeProvider.System));
         serviceCollection.AddSingleton<ICheckpointService>(_ => new CheckpointService(GetDataFolderPath()));
         serviceCollection.AddSingleton<IDigestBuilder, DigestBuilder>();
@@ -37,6 +40,22 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IEmailTransport, MailKitEmailTransport>();
         serviceCollection.AddSingleton<ISmtpConfigurationAccessor, PluginConfigurationAccessor>();
         serviceCollection.AddSingleton<LibraryAdminService>();
+        serviceCollection.AddSingleton(provider => new DigestRunner(
+            provider.GetRequiredService<ISmtpConfigurationAccessor>(),
+            provider.GetRequiredService<IMonitoredLibraryValidator>(),
+            provider.GetRequiredService<IUserPreferenceRepository>(),
+            provider.GetRequiredService<IUserDirectory>(),
+            provider.GetRequiredService<IMediaDiscoveryService>(),
+            provider.GetRequiredService<IDigestBuilder>(),
+            provider.GetRequiredService<IDigestRenderer>(),
+            provider.GetRequiredService<IEmailTransport>(),
+            provider.GetRequiredService<ISmtpPasswordStore>(),
+            provider.GetRequiredService<IDeliveryStateStore>(),
+            provider.GetRequiredService<IRunSummaryStore>(),
+            provider.GetRequiredService<IDigestRunLock>(),
+            DigestRetryPolicy.Default,
+            TimeProvider.System,
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DigestRunner>>()));
         serviceCollection.AddSingleton(provider => new SmtpAdminService(
             provider.GetRequiredService<ISmtpConfigurationAccessor>(),
             provider.GetRequiredService<ISmtpPasswordStore>(),
