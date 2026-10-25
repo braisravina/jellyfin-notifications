@@ -94,5 +94,18 @@
   "AdminMaxPerSectionDesc": "Items beyond this are not lost: they appear in the user's next digest.",
   "AdminMaxPerDigest": "Most items per digest",
   "AdminMaxEpisodes": "Most episodes listed per series",
-  "AdminMaxEpisodesDesc": "The series line still shows how many new episodes there are."
+  "AdminMaxEpisodesDesc": "The series line still shows how many new episodes there are.",
+  "AdminSectionLibraries": "Monitored libraries",
+  "AdminLibrariesDesc": "Choose which libraries are included in digests and which section each appears under. A new library is never included until you tick it here. Each user still only sees what Jellyfin lets them see.",
+  "AdminLibrariesNone": "No libraries were found.",
+  "AdminLibrariesEmptyNote": "With nothing ticked, no digest contains anything.",
+  "AdminLibraryMissing": "No longer exists in Jellyfin. It is dropped when you save.",
+  "AdminLibrariesSaved": "Libraries saved.",
+  "AdminCategoryMovies": "Movies",
+  "AdminCategorySeries": "Series",
+  "AdminCategoryAnime": "Anime",
+  "AdminCategoryDocumentaries": "Documentaries",
+  "AdminCategoryMusic": "Music",
+  "AdminCategoryOther": "Other",
+  "AdminChooseCategory": "Choose a section"
 }

@@ -36,6 +36,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISmtpPasswordStore>(_ => new SmtpPasswordStore(GetDataFolderPath()));
         serviceCollection.AddSingleton<IEmailTransport, MailKitEmailTransport>();
         serviceCollection.AddSingleton<ISmtpConfigurationAccessor, PluginConfigurationAccessor>();
+        serviceCollection.AddSingleton<LibraryAdminService>();
         serviceCollection.AddSingleton(provider => new SmtpAdminService(
             provider.GetRequiredService<ISmtpConfigurationAccessor>(),
             provider.GetRequiredService<ISmtpPasswordStore>(),

@@ -37,16 +37,19 @@ namespace Jellyfin.Plugin.EmailDigest.Admin;
 public class EmailDigestAdminController : ControllerBase
 {
     private readonly SmtpAdminService _service;
+    private readonly LibraryAdminService _libraries;
     private readonly ILogger<EmailDigestAdminController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailDigestAdminController"/> class.
     /// </summary>
-    /// <param name="service">The administrator service.</param>
+    /// <param name="service">The SMTP administrator service.</param>
+    /// <param name="libraries">The library administrator service.</param>
     /// <param name="logger">The logger.</param>
-    public EmailDigestAdminController(SmtpAdminService service, ILogger<EmailDigestAdminController> logger)
+    public EmailDigestAdminController(SmtpAdminService service, LibraryAdminService libraries, ILogger<EmailDigestAdminController> logger)
     {
         _service = service;
+        _libraries = libraries;
         _logger = logger;
     }
 
@@ -131,6 +134,28 @@ public class EmailDigestAdminController : ControllerBase
     public Task<IActionResult> GetStrings([FromQuery] string? language)
     {
         return RunAsync(() => Task.FromResult(_service.GetStrings(language)));
+    }
+
+    /// <summary>
+    /// Gets Jellyfin's libraries and which are monitored.
+    /// </summary>
+    /// <returns>The libraries.</returns>
+    [HttpGet("Libraries")]
+    public Task<IActionResult> GetLibraries()
+    {
+        return RunAsync(() => Task.FromResult(_libraries.GetLibraries()));
+    }
+
+    /// <summary>
+    /// Replaces the monitored libraries. An empty list monitors nothing.
+    /// </summary>
+    /// <param name="update">The chosen libraries and their categories.</param>
+    /// <returns>The saved state, or the reasons nothing was saved.</returns>
+    [HttpPut("Libraries")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public Task<IActionResult> UpdateLibraries([FromBody] LibrariesUpdate? update)
+    {
+        return RunAsync(() => Task.FromResult(_libraries.UpdateLibraries(update)));
     }
 
     private async Task<IActionResult> RunAsync(Func<Task<AdminResponse>> action)

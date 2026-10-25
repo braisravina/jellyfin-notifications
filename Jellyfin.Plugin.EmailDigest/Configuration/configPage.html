@@ -66,6 +66,20 @@
                     <div id="DigestMessage" class="fieldDescription" role="status" aria-live="polite"></div>
                 </form>
 
+                <form id="LibrariesForm">
+                    <h3 data-i18n="AdminSectionLibraries"></h3>
+                    <div class="fieldDescription" data-i18n="AdminLibrariesDesc"></div>
+                    <div id="LibraryRows"></div>
+                    <div id="LibraryMissing" class="fieldDescription"></div>
+                    <div class="fieldDescription" data-i18n="AdminLibrariesEmptyNote"></div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span data-i18n="AdminSave"></span>
+                        </button>
+                    </div>
+                    <div id="LibrariesMessage" class="fieldDescription" role="status" aria-live="polite"></div>
+                </form>
+
                 <form id="SmtpForm" autocomplete="off">
                     <h3 data-i18n="AdminSectionSmtp"></h3>
                     <div class="checkboxContainer checkboxContainer-withDescription">
@@ -276,6 +290,65 @@
                     return text;
                 }
 
+                var libraryRows = [];
+
+                function clearChildren(element) {
+                    while (element.firstChild) { element.removeChild(element.firstChild); }
+                }
+
+                // Library names are untrusted text: they are only ever set through textContent.
+                function renderLibraries(data) {
+                    var container = $('#LibraryRows');
+                    clearChildren(container);
+                    libraryRows = [];
+                    var categories = data.Categories || [];
+                    (data.Libraries || []).forEach(function (library) {
+                        var row = document.createElement('div');
+                        row.className = 'checkboxContainer';
+
+                        var label = document.createElement('label');
+                        label.className = 'emby-checkbox-label';
+                        var box = document.createElement('input');
+                        box.type = 'checkbox';
+                        box.setAttribute('is', 'emby-checkbox');
+                        box.checked = !!library.Monitored;
+                        var name = document.createElement('span');
+                        name.textContent = library.Name;
+                        label.appendChild(box);
+                        label.appendChild(name);
+                        row.appendChild(label);
+
+                        var select = document.createElement('select');
+                        select.setAttribute('is', 'emby-select');
+                        select.className = 'emby-select-withcolor emby-select';
+                        select.setAttribute('aria-label', library.Name + ' - ' + t('AdminChooseCategory'));
+                        var chosen = library.Category || library.SuggestedCategory || '';
+                        var placeholder = document.createElement('option');
+                        placeholder.value = '';
+                        placeholder.textContent = t('AdminChooseCategory');
+                        select.appendChild(placeholder);
+                        categories.forEach(function (category) {
+                            var option = document.createElement('option');
+                            option.value = category;
+                            option.textContent = t('AdminCategory' + category) || category;
+                            select.appendChild(option);
+                        });
+                        select.value = chosen;
+                        row.appendChild(select);
+
+                        container.appendChild(row);
+                        libraryRows.push({ id: library.Id, box: box, select: select });
+                    });
+                    if (!libraryRows.length) {
+                        var none = document.createElement('div');
+                        none.className = 'fieldDescription';
+                        none.textContent = t('AdminLibrariesNone');
+                        container.appendChild(none);
+                    }
+                    var missing = data.Missing || [];
+                    say('#LibraryMissing', missing.length ? t('AdminLibraryMissing') + ' (' + missing.length + ')' : '');
+                }
+
                 function load() {
                     Dashboard.showLoadingMsg();
                     var lang = encodeURIComponent(language());
@@ -284,7 +357,8 @@
                         applyStrings();
                         return Promise.all([
                             ApiClient.getPluginConfiguration(pluginId),
-                            api('GET', 'Settings')
+                            api('GET', 'Settings'),
+                            api('GET', 'Libraries')
                         ]);
                     }).then(function (results) {
                         var config = results[0];
@@ -296,6 +370,7 @@
                         $('#MaxEntriesPerDigest').value = config.MaxEntriesPerDigest;
                         $('#MaxEpisodesPerSeries').value = config.MaxEpisodesPerSeries;
                         fillSmtp(results[1]);
+                        renderLibraries(results[2]);
                         Dashboard.hideLoadingMsg();
                     }).catch(function () {
                         Dashboard.hideLoadingMsg();
@@ -330,6 +405,25 @@
                         say('#DigestMessage', t('AdminSaved'));
                     }, function () {
                         say('#DigestMessage', t('AdminSaveFailed'), true);
+                    });
+                    return false;
+                });
+
+                $('#LibrariesForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var chosen = libraryRows.filter(function (row) { return row.box.checked; });
+                    if (chosen.some(function (row) { return !row.select.value; })) {
+                        say('#LibrariesMessage', t('AdminChooseCategory'), true);
+                        return false;
+                    }
+                    say('#LibrariesMessage', t('AdminWorking'));
+                    api('PUT', 'Libraries', {
+                        Monitored: chosen.map(function (row) { return { LibraryId: row.id, Category: row.select.value }; })
+                    }).then(function (data) {
+                        renderLibraries(data);
+                        say('#LibrariesMessage', t('AdminLibrariesSaved'));
+                    }, function (error) {
+                        say('#LibrariesMessage', describeError(error, 'AdminSaveFailed'), true);
                     });
                     return false;
                 });

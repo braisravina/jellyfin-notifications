@@ -71,7 +71,7 @@ public sealed class EmailDigestAdminControllerTests
         foreach (var action in Actions())
         {
             var verb = Assert.Single(action.GetCustomAttributes<HttpMethodAttribute>());
-            var changesState = action.Name is "UpdateSettings" or "SetPassword" or "ClearPassword" or "TestConnection" or "SendTestEmail";
+            var changesState = action.Name is "UpdateLibraries" or "UpdateSettings" or "SetPassword" or "ClearPassword" or "TestConnection" or "SendTestEmail";
             if (changesState)
             {
                 Assert.DoesNotContain("GET", verb.HttpMethods);
@@ -124,7 +124,7 @@ public sealed class EmailDigestAdminControllerTests
             new Jellyfin.Plugin.EmailDigest.Services.LocalizationService(),
             TimeProvider.System,
             NullLogger<SmtpAdminService>.Instance);
-        var controller = new EmailDigestAdminController(service, NullLogger<EmailDigestAdminController>.Instance);
+        var controller = new EmailDigestAdminController(service, null!, NullLogger<EmailDigestAdminController>.Instance);
 
         var result = await controller.GetSettings();
 

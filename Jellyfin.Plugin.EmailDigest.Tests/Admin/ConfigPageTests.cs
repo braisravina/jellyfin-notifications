@@ -191,4 +191,20 @@ public sealed class ConfigPageTests
         Assert.Contains("role=\"alert\"", Html, StringComparison.Ordinal);
         Assert.All(Matches("<input id=\"([A-Za-z]+)\"").Where(id => id != "DigestEnabled" && id != "SmtpEnabled" && id != "DigestDryRun"), id => Assert.Contains($"for=\"{id}\"", Html, StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void LibrariesSection_ShowsUntrustedNamesAsTextAndRequiresAChosenCategory()
+    {
+        Assert.Contains("name.textContent = library.Name;", Html, StringComparison.Ordinal);
+        Assert.Contains("!row.select.value", Html, StringComparison.Ordinal);
+        Assert.Contains("api('PUT', 'Libraries'", Html, StringComparison.Ordinal);
+        Assert.Contains("api('GET', 'Libraries')", Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LibrariesSection_NeverTicksALibraryByDefaultAndNeverGuessesAnime()
+    {
+        Assert.Contains("box.checked = !!library.Monitored;", Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("'Anime'", Html, StringComparison.Ordinal);
+    }
 }

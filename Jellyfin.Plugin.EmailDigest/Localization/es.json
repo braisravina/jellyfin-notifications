@@ -94,5 +94,18 @@
   "AdminMaxPerSectionDesc": "Lo que exceda este límite no se pierde: aparece en el siguiente resumen del usuario.",
   "AdminMaxPerDigest": "Máximo de elementos por resumen",
   "AdminMaxEpisodes": "Máximo de episodios listados por serie",
-  "AdminMaxEpisodesDesc": "La línea de la serie sigue indicando cuántos episodios nuevos hay."
+  "AdminMaxEpisodesDesc": "La línea de la serie sigue indicando cuántos episodios nuevos hay.",
+  "AdminSectionLibraries": "Bibliotecas supervisadas",
+  "AdminLibrariesDesc": "Elige qué bibliotecas se incluyen en los resúmenes y en qué sección aparece cada una. Una biblioteca nueva nunca se incluye hasta que la marques aquí. Cada usuario solo ve lo que Jellyfin le permite ver.",
+  "AdminLibrariesNone": "No se encontraron bibliotecas.",
+  "AdminLibrariesEmptyNote": "Si no marcas ninguna, ningún resumen contiene nada.",
+  "AdminLibraryMissing": "Ya no existe en Jellyfin. Se descarta al guardar.",
+  "AdminLibrariesSaved": "Bibliotecas guardadas.",
+  "AdminCategoryMovies": "Películas",
+  "AdminCategorySeries": "Series",
+  "AdminCategoryAnime": "Anime",
+  "AdminCategoryDocumentaries": "Documentales",
+  "AdminCategoryMusic": "Música",
+  "AdminCategoryOther": "Otros",
+  "AdminChooseCategory": "Elige una sección"
 }
