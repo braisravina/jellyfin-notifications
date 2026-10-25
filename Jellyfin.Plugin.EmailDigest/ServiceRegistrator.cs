@@ -1,4 +1,5 @@
 using System;
+using Jellyfin.Plugin.EmailDigest.Admin;
 using Jellyfin.Plugin.EmailDigest.Digest;
 using Jellyfin.Plugin.EmailDigest.Email;
 using Jellyfin.Plugin.EmailDigest.Services;
@@ -32,6 +33,14 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IMonitoredLibraryValidator, MonitoredLibraryValidator>();
         serviceCollection.AddSingleton<ISmtpPasswordStore>(_ => new SmtpPasswordStore(GetDataFolderPath()));
         serviceCollection.AddSingleton<IEmailTransport, MailKitEmailTransport>();
+        serviceCollection.AddSingleton<ISmtpConfigurationAccessor, PluginConfigurationAccessor>();
+        serviceCollection.AddSingleton(provider => new SmtpAdminService(
+            provider.GetRequiredService<ISmtpConfigurationAccessor>(),
+            provider.GetRequiredService<ISmtpPasswordStore>(),
+            provider.GetRequiredService<IEmailTransport>(),
+            provider.GetRequiredService<ILocalizationService>(),
+            TimeProvider.System,
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SmtpAdminService>>()));
         serviceCollection.AddSingleton<ILibraryAccessResolver, JellyfinLibraryAccessResolver>();
         serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
     }

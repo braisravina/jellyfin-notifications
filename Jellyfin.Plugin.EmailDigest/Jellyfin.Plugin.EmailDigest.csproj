@@ -29,6 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ASP.NET Core types for the administrator API controller. Provided by the server at runtime. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!--
       SMTP client and MIME builder. Not part of Jellyfin, so its assemblies (MailKit, MimeKit,
       BouncyCastle.Cryptography) must be deployed next to the plugin DLL, unlike the Jellyfin

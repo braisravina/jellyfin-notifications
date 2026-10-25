@@ -24,5 +24,17 @@
   "EmptyDigest": "Non hai novidades dende o teu último resumo.",
   "SubjectNewOne": "Resumo de Jellyfin: {0} novidade",
   "SubjectNewOther": "Resumo de Jellyfin: {0} novidades",
-  "GreetingNoName": "Ola,"
+  "GreetingNoName": "Ola,",
+  "AdminOutcomeAccepted": "O servidor SMTP aceptou a solicitude. Isto non garante que a mensaxe chegue á caixa de correo.",
+  "AdminOutcomeInvalidRequest": "A configuración ou o enderezo non son válidos, así que non se enviou nada. Revisa os axustes SMTP e o contrasinal.",
+  "AdminOutcomeConnectionFailed": "Non se puido conectar co servidor SMTP. Revisa o host, o porto e a rede.",
+  "AdminOutcomeTlsFailed": "Non se puido establecer unha conexión segura. Pode que o servidor non admita o cifrado escollido ou que o seu certificado non sexa de confianza. Non se continuou sen cifrado.",
+  "AdminOutcomeAuthenticationFailed": "O servidor rexeitou o usuario ou o contrasinal.",
+  "AdminOutcomeSenderRejected": "O servidor rexeitou o enderezo do remitente.",
+  "AdminOutcomeRecipientRejected": "O servidor rexeitou o enderezo do destinatario.",
+  "AdminOutcomeTimeout": "O servidor SMTP non respondeu a tempo.",
+  "AdminOutcomeCancelled": "A operación foi cancelada.",
+  "AdminOutcomeUnexpectedError": "Produciuse un erro inesperado. Consulta o rexistro de Jellyfin para máis detalles.",
+  "TestEmailSubject": "Resumo de Jellyfin: mensaxe de proba",
+  "TestEmailBody": "Esta é unha mensaxe de proba do complemento Email Digest, enviada porque un administrador a solicitou. Se podes lela, o servidor SMTP aceptouna. Non inclúe información de contidos."
 }

@@ -24,5 +24,17 @@
   "EmptyDigest": "Nothing new since your last digest.",
   "SubjectNewOne": "Jellyfin digest: {0} new item",
   "SubjectNewOther": "Jellyfin digest: {0} new items",
-  "GreetingNoName": "Hello,"
+  "GreetingNoName": "Hello,",
+  "AdminOutcomeAccepted": "The SMTP server accepted the request. This does not guarantee the message reaches the mailbox.",
+  "AdminOutcomeInvalidRequest": "The settings or the address are not valid, so nothing was sent. Check the SMTP settings and the password.",
+  "AdminOutcomeConnectionFailed": "Could not connect to the SMTP server. Check the host, port and network.",
+  "AdminOutcomeTlsFailed": "A secure connection could not be established. The server may not support the chosen encryption, or its certificate is not trusted. The connection was not continued without encryption.",
+  "AdminOutcomeAuthenticationFailed": "The server rejected the username or password.",
+  "AdminOutcomeSenderRejected": "The server rejected the sender address.",
+  "AdminOutcomeRecipientRejected": "The server rejected the recipient address.",
+  "AdminOutcomeTimeout": "The SMTP server did not answer in time.",
+  "AdminOutcomeCancelled": "The operation was cancelled.",
+  "AdminOutcomeUnexpectedError": "An unexpected error occurred. Check the Jellyfin log for details.",
+  "TestEmailSubject": "Jellyfin Email Digest: test message",
+  "TestEmailBody": "This is a test message from the Email Digest plugin, sent because an administrator asked for it. If you can read it, the SMTP server accepted it. No media information is included."
 }
