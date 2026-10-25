@@ -1,0 +1,53 @@
+Hello Ana,
+
+Here's what's new since your last digest:
+
+Movies
+------
+* Untitled
+* Amélie (2001)
+* Third Film (2019)
+* Tom & Jerry <The Movie> (2021)
+  and 1 more
+
+Series
+------
+* Breaking Bad — 5 new episodes
+    - S01E01 – Pilot
+    - S01E02 – Cat's in the Bag...
+    - Season 2 – Special
+    - Episode 5 – Extra
+    - Untitled
+* Long Running Show — 12 new episodes
+    - S01E01 – Episode 1
+    - S01E02 – Episode 2
+    - S01E03 – Episode 3
+    - S01E04 – Episode 4
+    - S01E05 – Episode 5
+    - S01E06 – Episode 6
+    - S01E07 – Episode 7
+    - S01E08 – Episode 8
+    - S01E09 – Episode 9
+    - S01E10 – Episode 10
+    and 2 more
+
+Anime
+-----
+* 千と千尋の神隠し — 1 new episode
+    - S01E01 – 第1話
+
+Documentaries
+-------------
+* Planet Earth (2006)
+
+Music
+-----
+* Kind of Blue — by Miles Davis
+* Untitled Demo
+
+Other
+-----
+* Home Video (2020)
+
+--
+This is an automated message from your Jellyfin server.

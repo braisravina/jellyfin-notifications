@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Jellyfin.Plugin.EmailDigest\Jellyfin.Plugin.EmailDigest.csproj" />
+    <None Include="Golden\**" CopyToOutputDirectory="PreserveNewest" LinkBase="Golden" />
   </ItemGroup>
 
   <ItemGroup>
