@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.EmailDigest.Configuration;
 using Jellyfin.Plugin.EmailDigest.Models;
 using MediaBrowser.Controller.Dto;
@@ -18,13 +19,16 @@ namespace Jellyfin.Plugin.EmailDigest.Services;
 
 /// <inheritdoc />
 /// <remarks>
-/// Authorization comes entirely from Jellyfin: a <see cref="MediaBrowser.Controller.Entities.InternalItemsQuery"/>
-/// is built with its <c>User</c> set to the resolved <see cref="MediaBrowser.Controller.Library.IUserManager"/>
-/// user, and <see cref="MediaBrowser.Controller.Library.ILibraryManager.GetItemList(InternalItemsQuery)"/> is
-/// trusted to only return items that user can already see — the same mechanism Jellyfin's own API
-/// controllers use. This class never inspects or duplicates library-access or parental-rating
-/// state itself. An unresolved user, an empty monitored-library list, or an empty/inverted window
-/// short-circuit to an empty result without ever running an unrestricted query.
+/// Authorization comes entirely from Jellyfin, in two layers. Library access is decided by
+/// <see cref="ILibraryAccessResolver"/> (Jellyfin's own <c>CollectionFolder.IsVisible</c>), because
+/// <see cref="MediaBrowser.Controller.Library.ILibraryManager.GetItemList(InternalItemsQuery)"/> only
+/// intersects a query with the user's permitted libraries when no <c>TopParentIds</c> are supplied —
+/// and this service always supplies them. Item-level rules (parental rating, blocked tags) come from
+/// building the <see cref="InternalItemsQuery"/> with its <c>User</c> set. Only libraries that are
+/// both monitored and accessible are ever queried; if none are, or the user is unresolved, or the
+/// window is empty/inverted, the result is empty without running a query, so an empty
+/// <c>TopParentIds</c> (which Jellyfin reads as "all libraries") can never be sent. A Jellyfin
+/// failure surfaces as <see cref="MediaDiscoveryException"/> rather than an empty result.
 /// </remarks>
 public sealed class MediaDiscoveryService : IMediaDiscoveryService
 {
@@ -37,6 +41,7 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
 
     private readonly ILibraryManager _libraryManager;
     private readonly IUserManager _userManager;
+    private readonly ILibraryAccessResolver _libraryAccess;
     private readonly ILogger<MediaDiscoveryService> _logger;
 
     /// <summary>
@@ -44,15 +49,22 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
     /// </summary>
     /// <param name="libraryManager">Jellyfin's library manager.</param>
     /// <param name="userManager">Jellyfin's user manager.</param>
+    /// <param name="libraryAccess">Resolves whether a monitored library is accessible to a user.</param>
     /// <param name="logger">Logger.</param>
-    public MediaDiscoveryService(ILibraryManager libraryManager, IUserManager userManager, ILogger<MediaDiscoveryService> logger)
+    public MediaDiscoveryService(
+        ILibraryManager libraryManager,
+        IUserManager userManager,
+        ILibraryAccessResolver libraryAccess,
+        ILogger<MediaDiscoveryService> logger)
     {
         ArgumentNullException.ThrowIfNull(libraryManager);
         ArgumentNullException.ThrowIfNull(userManager);
+        ArgumentNullException.ThrowIfNull(libraryAccess);
         ArgumentNullException.ThrowIfNull(logger);
 
         _libraryManager = libraryManager;
         _userManager = userManager;
+        _libraryAccess = libraryAccess;
         _logger = logger;
     }
 
@@ -85,17 +97,34 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var query = new InternalItemsQuery(user)
+        var topParentIds = ResolveAccessibleTopParentIds(user, monitoredLibraries);
+        if (topParentIds.Length == 0)
         {
-            Recursive = true,
-            IsVirtualItem = false,
-            IncludeItemTypes = SupportedKinds,
-            TopParentIds = monitoredLibraries.Select(library => library.LibraryId).Distinct().ToArray(),
-            MinDateCreated = fromUtc.UtcDateTime,
-            DtoOptions = new DtoOptions(false)
-        };
+            return Task.FromResult(Empty);
+        }
 
-        var items = _libraryManager.GetItemList(query);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IReadOnlyList<BaseItem> items;
+        try
+        {
+            var query = new InternalItemsQuery(user)
+            {
+                Recursive = true,
+                IsVirtualItem = false,
+                IncludeItemTypes = SupportedKinds,
+                TopParentIds = topParentIds,
+                MinDateCreated = fromUtc.UtcDateTime,
+                DtoOptions = new DtoOptions(false)
+            };
+
+            items = _libraryManager.GetItemList(query);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Jellyfin failed while discovering media for user {UserId}.", userId);
+            throw new MediaDiscoveryException($"Jellyfin failed while discovering media for user {userId}.", ex);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -139,6 +168,44 @@ public sealed class MediaDiscoveryService : IMediaDiscoveryService
             toUtc);
 
         return Task.FromResult<IReadOnlyList<DiscoveredMediaItem>>(results);
+    }
+
+    private Guid[] ResolveAccessibleTopParentIds(User user, IReadOnlyList<MonitoredLibrary> monitoredLibraries)
+    {
+        var topParentIds = new HashSet<Guid>();
+
+        foreach (var libraryId in monitoredLibraries.Select(library => library.LibraryId).Distinct())
+        {
+            LibraryAccess access;
+            try
+            {
+                access = _libraryAccess.Resolve(user, libraryId);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Jellyfin failed while resolving library {LibraryId} for user {UserId}.", libraryId, user.Id);
+                throw new MediaDiscoveryException($"Jellyfin failed while resolving library {libraryId}.", ex);
+            }
+
+            switch (access.Status)
+            {
+                case LibraryAccessStatus.Accessible:
+                    topParentIds.UnionWith(access.TopParentIds.Where(id => id != Guid.Empty));
+                    break;
+                case LibraryAccessStatus.NotFound:
+                case LibraryAccessStatus.NotLibrary:
+                    _logger.LogWarning(
+                        "Monitored library {LibraryId} is {Status}; skipping it. Review the monitored-library configuration.",
+                        libraryId,
+                        access.Status);
+                    break;
+                default:
+                    _logger.LogDebug("Monitored library {LibraryId} is not accessible to user {UserId}; skipping it.", libraryId, user.Id);
+                    break;
+            }
+        }
+
+        return topParentIds.ToArray();
     }
 
     private static DiscoveredMediaItem Normalize(Movie movie, DateTimeOffset createdUtc)

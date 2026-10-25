@@ -38,10 +38,15 @@ public interface IMediaDiscoveryService
     /// </param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     /// <returns>
-    /// The deduplicated, authorized, normalized candidates. Empty — never an exception and never
-    /// an unrestricted fallback — when the user cannot be resolved, no libraries are monitored,
-    /// the window is empty, or nothing authorized/supported/new exists.
+    /// The deduplicated, authorized, normalized candidates. Empty — never an unrestricted
+    /// fallback — when the user cannot be resolved, no libraries are monitored, none of the
+    /// monitored libraries exists and is accessible to the user, the window is empty, or nothing
+    /// authorized/supported/new exists.
     /// </returns>
+    /// <exception cref="MediaDiscoveryException">
+    /// Jellyfin failed; the result is unknown, so callers must not advance the checkpoint.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     Task<IReadOnlyList<DiscoveredMediaItem>> DiscoverAsync(
         Guid userId,
         IReadOnlyList<MonitoredLibrary> monitoredLibraries,

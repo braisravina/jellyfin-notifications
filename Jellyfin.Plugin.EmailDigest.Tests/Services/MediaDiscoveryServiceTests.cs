@@ -45,12 +45,34 @@ public sealed class MediaDiscoveryServiceTests
         };
     }
 
+    // Default resolver: every library is accessible and its items are stored under a
+    // TopParentId equal to the library id, so tests not about access can ignore the seam.
+    private static Mock<ILibraryAccessResolver> AllAccessibleResolver()
+    {
+        var resolver = new Mock<ILibraryAccessResolver>();
+        resolver
+            .Setup(r => r.Resolve(It.IsAny<User>(), It.IsAny<Guid>()))
+            .Returns((User _, Guid id) => new LibraryAccess(LibraryAccessStatus.Accessible, new[] { id }));
+        return resolver;
+    }
+
     private static (Mock<ILibraryManager> LibraryManager, Mock<IUserManager> UserManager, MediaDiscoveryService Service) CreateService()
+    {
+        var (libraryManager, userManager, _, service) = CreateServiceWithResolver(AllAccessibleResolver());
+        return (libraryManager, userManager, service);
+    }
+
+    private static (Mock<ILibraryManager> LibraryManager, Mock<IUserManager> UserManager, Mock<ILibraryAccessResolver> Resolver, MediaDiscoveryService Service) CreateServiceWithResolver(
+        Mock<ILibraryAccessResolver> resolver)
     {
         var libraryManager = new Mock<ILibraryManager>();
         var userManager = new Mock<IUserManager>();
-        var service = new MediaDiscoveryService(libraryManager.Object, userManager.Object, NullLogger<MediaDiscoveryService>.Instance);
-        return (libraryManager, userManager, service);
+        var service = new MediaDiscoveryService(
+            libraryManager.Object,
+            userManager.Object,
+            resolver.Object,
+            NullLogger<MediaDiscoveryService>.Instance);
+        return (libraryManager, userManager, resolver, service);
     }
 
     // 1-5, 11: authorization plumbing — the fake ILibraryManager stands in for Jellyfin's own
@@ -87,37 +109,138 @@ public sealed class MediaDiscoveryServiceTests
     }
 
     [Fact]
-    public async Task DiscoverAsync_GloballyMonitoredButUserLacksAccess_LibraryExcluded()
+    public async Task DiscoverAsync_GloballyMonitoredButUserLacksAccess_NoQueryIsRun()
     {
-        var (libraryManager, userManager, service) = CreateService();
+        var resolver = new Mock<ILibraryAccessResolver>();
+        resolver
+            .Setup(r => r.Resolve(It.IsAny<User>(), LibraryId))
+            .Returns(new LibraryAccess(LibraryAccessStatus.NotAccessible, Array.Empty<Guid>()));
+        var (libraryManager, userManager, _, service) = CreateServiceWithResolver(resolver);
         var user = MakeUser(Guid.NewGuid());
         userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
-        // Jellyfin itself would omit items from a library the user can't see; the fake mirrors
-        // that by returning nothing for this monitored-but-inaccessible library.
-        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem>());
 
         var result = await service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), FromUtc, ToUtc, CancellationToken.None);
 
         Assert.Empty(result);
+        // Never fall through to a query: with no TopParentIds Jellyfin would search every library.
+        libraryManager.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(LibraryAccessStatus.NotFound)]
+    [InlineData(LibraryAccessStatus.NotLibrary)]
+    [InlineData(LibraryAccessStatus.NotAccessible)]
+    public async Task DiscoverAsync_NoMonitoredLibraryResolvable_ReturnsEmptyWithoutQuerying(LibraryAccessStatus status)
+    {
+        var resolver = new Mock<ILibraryAccessResolver>();
+        resolver
+            .Setup(r => r.Resolve(It.IsAny<User>(), It.IsAny<Guid>()))
+            .Returns(new LibraryAccess(status, Array.Empty<Guid>()));
+        var (libraryManager, userManager, _, service) = CreateServiceWithResolver(resolver);
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        var result = await service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId, Guid.NewGuid()), FromUtc, ToUtc, CancellationToken.None);
+
+        Assert.Empty(result);
+        libraryManager.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
     }
 
     [Fact]
-    public async Task DiscoverAsync_UserHasAccessButLibraryNotMonitored_ItemExcluded()
+    public async Task DiscoverAsync_MixedLibraries_QueriesOnlyAccessibleOnes()
     {
-        var (libraryManager, userManager, service) = CreateService();
+        var accessibleLibrary = Guid.NewGuid();
+        var accessibleTopParent = Guid.NewGuid();
+        var deniedLibrary = Guid.NewGuid();
+        var deletedLibrary = Guid.NewGuid();
+        var resolver = new Mock<ILibraryAccessResolver>();
+        resolver
+            .Setup(r => r.Resolve(It.IsAny<User>(), accessibleLibrary))
+            .Returns(new LibraryAccess(LibraryAccessStatus.Accessible, new[] { accessibleTopParent }));
+        resolver
+            .Setup(r => r.Resolve(It.IsAny<User>(), deniedLibrary))
+            .Returns(new LibraryAccess(LibraryAccessStatus.NotAccessible, Array.Empty<Guid>()));
+        resolver
+            .Setup(r => r.Resolve(It.IsAny<User>(), deletedLibrary))
+            .Returns(new LibraryAccess(LibraryAccessStatus.NotFound, Array.Empty<Guid>()));
+        var (libraryManager, userManager, _, service) = CreateServiceWithResolver(resolver);
         var user = MakeUser(Guid.NewGuid());
-        var unmonitoredLibraryId = Guid.NewGuid();
         userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        InternalItemsQuery? captured = null;
         libraryManager
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.TopParentIds.Contains(unmonitoredLibraryId))))
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => captured = q)
             .Returns(new List<BaseItem> { MakeMovie() });
+
+        var result = await service.DiscoverAsync(
+            user.Id,
+            MonitoredLibraries(accessibleLibrary, deniedLibrary, deletedLibrary),
+            FromUtc,
+            ToUtc,
+            CancellationToken.None);
+
+        Assert.Single(result);
+        Assert.NotNull(captured);
+        Assert.Equal(new[] { accessibleTopParent }, captured!.TopParentIds);
+        Assert.Same(user, captured.User);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_SameLibraryMonitoredTwice_ResolvedAndQueriedOnce()
+    {
+        var resolver = AllAccessibleResolver();
+        var (libraryManager, userManager, _, service) = CreateServiceWithResolver(resolver);
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        InternalItemsQuery? captured = null;
         libraryManager
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => !q.TopParentIds.Contains(unmonitoredLibraryId))))
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => captured = q)
             .Returns(new List<BaseItem>());
 
-        var result = await service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), FromUtc, ToUtc, CancellationToken.None);
+        await service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId, LibraryId), FromUtc, ToUtc, CancellationToken.None);
+
+        resolver.Verify(r => r.Resolve(user, LibraryId), Times.Once);
+        Assert.Equal(new[] { LibraryId }, captured!.TopParentIds);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_EmptyMonitoredLibraries_ReturnsEmptyWithoutQuerying()
+    {
+        var (libraryManager, userManager, resolver, service) = CreateServiceWithResolver(AllAccessibleResolver());
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        var result = await service.DiscoverAsync(user.Id, MonitoredLibraries(), FromUtc, ToUtc, CancellationToken.None);
 
         Assert.Empty(result);
+        libraryManager.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
+        resolver.Verify(r => r.Resolve(It.IsAny<User>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_DifferentUsers_AccessResolvedPerUser()
+    {
+        var restrictedLibrary = Guid.NewGuid();
+        var openUser = MakeUser(Guid.NewGuid());
+        var restrictedUser = MakeUser(Guid.NewGuid());
+        var resolver = new Mock<ILibraryAccessResolver>();
+        resolver
+            .Setup(r => r.Resolve(It.Is<User>(u => u.Id == openUser.Id), restrictedLibrary))
+            .Returns(new LibraryAccess(LibraryAccessStatus.Accessible, new[] { restrictedLibrary }));
+        resolver
+            .Setup(r => r.Resolve(It.Is<User>(u => u.Id == restrictedUser.Id), restrictedLibrary))
+            .Returns(new LibraryAccess(LibraryAccessStatus.NotAccessible, Array.Empty<Guid>()));
+        var (libraryManager, userManager, _, service) = CreateServiceWithResolver(resolver);
+        userManager.Setup(m => m.GetUserById(openUser.Id)).Returns(openUser);
+        userManager.Setup(m => m.GetUserById(restrictedUser.Id)).Returns(restrictedUser);
+        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem> { MakeMovie() });
+
+        var openResult = await service.DiscoverAsync(openUser.Id, MonitoredLibraries(restrictedLibrary), FromUtc, ToUtc, CancellationToken.None);
+        var restrictedResult = await service.DiscoverAsync(restrictedUser.Id, MonitoredLibraries(restrictedLibrary), FromUtc, ToUtc, CancellationToken.None);
+
+        Assert.Single(openResult);
+        Assert.Empty(restrictedResult);
     }
 
     [Fact]
@@ -321,6 +444,79 @@ public sealed class MediaDiscoveryServiceTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => service.DiscoverAsync(Guid.NewGuid(), MonitoredLibraries(LibraryId), FromUtc, ToUtc, cts.Token));
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_JellyfinQueryThrows_SurfacesMediaDiscoveryExceptionNotEmpty()
+    {
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var failure = new InvalidOperationException("database is locked");
+        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Throws(failure);
+
+        var ex = await Assert.ThrowsAsync<MediaDiscoveryException>(
+            () => service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), FromUtc, ToUtc, CancellationToken.None));
+
+        Assert.Same(failure, ex.InnerException);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_LibraryResolutionThrows_SurfacesMediaDiscoveryException()
+    {
+        var resolver = new Mock<ILibraryAccessResolver>();
+        resolver.Setup(r => r.Resolve(It.IsAny<User>(), It.IsAny<Guid>())).Throws(new InvalidOperationException("boom"));
+        var (libraryManager, userManager, _, service) = CreateServiceWithResolver(resolver);
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        await Assert.ThrowsAsync<MediaDiscoveryException>(
+            () => service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), FromUtc, ToUtc, CancellationToken.None));
+
+        libraryManager.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_QueryThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        libraryManager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Throws(new OperationCanceledException());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), FromUtc, ToUtc, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_CancelledDuringQuery_ThrowsAndDiscardsResults()
+    {
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        using var cts = new CancellationTokenSource();
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        libraryManager
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(_ => cts.Cancel())
+            .Returns(new List<BaseItem> { MakeMovie() });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), FromUtc, ToUtc, cts.Token));
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_EmptyOrInvertedWindow_ReturnsEmptyWithoutQuerying()
+    {
+        var (libraryManager, userManager, service) = CreateService();
+        var user = MakeUser(Guid.NewGuid());
+        userManager.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        var empty = await service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), FromUtc, FromUtc, CancellationToken.None);
+        var inverted = await service.DiscoverAsync(user.Id, MonitoredLibraries(LibraryId), ToUtc, FromUtc, CancellationToken.None);
+
+        Assert.Empty(empty);
+        Assert.Empty(inverted);
+        libraryManager.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
     }
 
     // Cross-user test: the same candidate set, filtered entirely by the fake ILibraryManager
