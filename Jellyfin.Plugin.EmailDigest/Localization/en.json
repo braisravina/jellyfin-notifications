@@ -107,5 +107,6 @@
   "AdminCategoryDocumentaries": "Documentaries",
   "AdminCategoryMusic": "Music",
   "AdminCategoryOther": "Other",
-  "AdminChooseCategory": "Choose a section"
+  "AdminChooseCategory": "Choose a section",
+  "ContinuationNote": "Items that did not fit are not lost: they will be included in your next digest."
 }

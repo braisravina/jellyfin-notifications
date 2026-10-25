@@ -12,7 +12,8 @@ namespace Jellyfin.Plugin.EmailDigest.Digest;
 /// by title (ordinal, case-insensitive) then by id; episodes by season, number, title and id, with
 /// unknown values last. Episodes group under their series by series id, else by series name, else
 /// into one "unknown series" entry per category. Entries are never cut inside a series: a limit
-/// hides whole entries and reports them in the hidden counts.
+/// hides whole entries and reports them in the hidden counts. The per-digest limit is shared fairly
+/// between the categories (see Allocate), not spent in section order.
 /// </remarks>
 public sealed class DigestBuilder : IDigestBuilder
 {
@@ -43,22 +44,26 @@ public sealed class DigestBuilder : IDigestBuilder
             .OrderBy(item => item.ItemId)
             .ToList();
 
-        var remainingInDigest = options.MaxEntriesPerDigest;
-        var sections = new List<DigestSection>();
-
+        var entriesByCategory = new List<(MediaCategory Category, List<DigestEntry> Entries)>();
         foreach (var category in SectionOrder)
         {
-            var allEntries = BuildEntries(unique.Where(item => item.Category == category).ToList());
-            if (allEntries.Count == 0)
+            var entries = BuildEntries(unique.Where(item => item.Category == category).ToList());
+            if (entries.Count > 0)
             {
-                continue;
+                entriesByCategory.Add((category, entries));
             }
+        }
 
-            var shownCount = Math.Min(allEntries.Count, Math.Min(options.MaxEntriesPerSection, remainingInDigest));
-            remainingInDigest -= shownCount;
+        var allocation = Allocate(
+            entriesByCategory.Select(c => Math.Min(c.Entries.Count, options.MaxEntriesPerSection)).ToList(),
+            options.MaxEntriesPerDigest);
 
-            var shown = allEntries.Take(shownCount).ToList();
-            var hidden = allEntries.Skip(shownCount).ToList();
+        var sections = new List<DigestSection>();
+        for (var i = 0; i < entriesByCategory.Count; i++)
+        {
+            var (category, allEntries) = entriesByCategory[i];
+            var shown = allEntries.Take(allocation[i]).ToList();
+            var hidden = allEntries.Skip(allocation[i]).ToList();
 
             sections.Add(new DigestSection(
                 category,
@@ -78,6 +83,44 @@ public sealed class DigestBuilder : IDigestBuilder
         }
 
         return new DigestModel(sections, unique, options.MaxEpisodesPerSeries);
+    }
+
+    // Shares the digest-wide budget fairly: every section gets an equal share, a section that needs
+    // less than its share frees the rest for the others, and leftover single entries go to the
+    // sections in display order. A large category therefore cannot push all others out of view.
+    private static int[] Allocate(IReadOnlyList<int> caps, int budget)
+    {
+        var allocation = new int[caps.Count];
+        var remaining = budget;
+
+        while (remaining > 0)
+        {
+            var active = Enumerable.Range(0, caps.Count).Where(i => allocation[i] < caps[i]).ToList();
+            if (active.Count == 0)
+            {
+                break;
+            }
+
+            var share = remaining / active.Count;
+            if (share == 0)
+            {
+                foreach (var i in active.Take(remaining))
+                {
+                    allocation[i]++;
+                }
+
+                break;
+            }
+
+            foreach (var i in active)
+            {
+                var give = Math.Min(share, caps[i] - allocation[i]);
+                allocation[i] += give;
+                remaining -= give;
+            }
+        }
+
+        return allocation;
     }
 
     private static List<DigestEntry> BuildEntries(IReadOnlyList<DiscoveredMediaItem> categoryItems)

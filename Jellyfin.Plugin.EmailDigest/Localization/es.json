@@ -107,5 +107,6 @@
   "AdminCategoryDocumentaries": "Documentales",
   "AdminCategoryMusic": "Música",
   "AdminCategoryOther": "Otros",
-  "AdminChooseCategory": "Elige una sección"
+  "AdminChooseCategory": "Elige una sección",
+  "ContinuationNote": "Lo que no cupo no se pierde: aparecerá en tu próximo resumen."
 }

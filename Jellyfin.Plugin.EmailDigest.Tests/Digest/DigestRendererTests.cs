@@ -168,6 +168,29 @@ public sealed class DigestRendererTests
         Assert.Equal(3, Regex.Matches(result.TextBody, @"^\* ", RegexOptions.Multiline).Count);
     }
 
+    [Theory]
+    [InlineData("en", "Items that did not fit are not lost: they will be included in your next digest.")]
+    [InlineData("es", "Lo que no cupo no se pierde: aparecerá en tu próximo resumen.")]
+    [InlineData("gl", "O que non cabía non se perde: aparecerá no teu próximo resumo.")]
+    public void Render_WhenEntriesWereHidden_SaysTheyFollowInTheNextDigest(string language, string note)
+    {
+        var items = Enumerable.Range(1, 8).Select(i => Movie("Movie " + i)).ToList();
+
+        var result = Render(items, language, options: new DigestOptions { MaxEntriesPerSection = 3 });
+
+        Assert.Contains(note, result.TextBody, StringComparison.Ordinal);
+        Assert.Contains(note, WebUtility.HtmlDecode(result.HtmlBody), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Render_WhenNothingWasHidden_HasNoContinuationNote()
+    {
+        var result = Render(new[] { Movie("A"), Movie("B") });
+
+        Assert.DoesNotContain("next digest", result.TextBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("next digest", result.HtmlBody, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Render_ManyEpisodes_ListsTenThenOverflow()
     {

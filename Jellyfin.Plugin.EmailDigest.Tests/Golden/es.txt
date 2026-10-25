@@ -49,5 +49,7 @@ Otros
 -----
 * Home Video (2020)
 
+Lo que no cupo no se pierde: aparecerá en tu próximo resumen.
+
 --
 Este es un mensaje automático de tu servidor Jellyfin.

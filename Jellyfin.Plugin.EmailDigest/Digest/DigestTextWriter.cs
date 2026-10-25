@@ -54,6 +54,11 @@ internal static class DigestTextWriter
             }
         }
 
+        if (view.ContinuationNote is not null)
+        {
+            text.Append('\n').Append(view.ContinuationNote).Append('\n');
+        }
+
         text.Append("\n--\n").Append(view.Footer).Append('\n');
         return text.ToString();
     }

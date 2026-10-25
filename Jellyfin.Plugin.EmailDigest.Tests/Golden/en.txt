@@ -49,5 +49,7 @@ Other
 -----
 * Home Video (2020)
 
+Items that did not fit are not lost: they will be included in your next digest.
+
 --
 This is an automated message from your Jellyfin server.

@@ -65,6 +65,7 @@ public sealed class DigestRenderer : IDigestRenderer
                 null,
                 Array.Empty<DigestViewSection>(),
                 text.Format("EmptyDigest"),
+                null,
                 text.Format("Footer"));
         }
 
@@ -75,6 +76,7 @@ public sealed class DigestRenderer : IDigestRenderer
             text.Format("Intro"),
             model.Sections.Select(section => BuildSection(section, text, model.EpisodeListLimit)).ToList(),
             null,
+            model.HasHiddenEntries ? text.Format("ContinuationNote") : null,
             text.Format("Footer"));
     }
 

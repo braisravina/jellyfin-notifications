@@ -78,6 +78,11 @@ internal static class DigestHtmlWriter
             }
         }
 
+        if (view.ContinuationNote is not null)
+        {
+            html.Append("<p style=\"margin:16px 0 0 0;font-size:14px;color:#3e4c59;\">").Append(Encode(view.ContinuationNote)).Append("</p>\n");
+        }
+
         html.Append("<hr style=\"border:0;border-top:1px solid #d9dde3;margin:24px 0 12px 0;\">\n");
         html.Append("<p style=\"margin:0;font-size:12px;color:#7b8794;\">").Append(Encode(view.Footer)).Append("</p>\n");
         html.Append("</td></tr>\n</table>\n</td></tr>\n</table>\n</body>\n</html>\n");

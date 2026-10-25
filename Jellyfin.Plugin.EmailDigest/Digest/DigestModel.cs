@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Jellyfin.Plugin.EmailDigest.Models;
 
 namespace Jellyfin.Plugin.EmailDigest.Digest;
@@ -14,6 +15,12 @@ namespace Jellyfin.Plugin.EmailDigest.Digest;
 /// <param name="EpisodeListLimit">The most episodes a renderer lists under one series line.</param>
 public sealed record DigestModel(IReadOnlyList<DigestSection> Sections, IReadOnlyList<DiscoveredMediaItem> Items, int EpisodeListLimit = 10)
 {
+    /// <summary>
+    /// Gets a value indicating whether a display limit hid any entry. Hidden entries are not
+    /// delivered by this digest and must stay pending for the next one.
+    /// </summary>
+    public bool HasHiddenEntries => Sections.Any(section => section.HiddenEntryCount > 0);
+
     /// <summary>
     /// Gets a value indicating whether there is nothing new to report.
     /// </summary>

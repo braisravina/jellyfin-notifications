@@ -284,7 +284,7 @@ public sealed class DigestBuilderTests
     }
 
     [Fact]
-    public void Build_DigestLimit_SpansSectionsInOrderAndNothingIsLost()
+    public void Build_DigestLimit_IsSharedFairly_ExtraEntriesGoToEarlierSections_NothingIsLost()
     {
         var items = new List<DiscoveredMediaItem>();
         items.AddRange(Enumerable.Range(1, 4).Select(i => Movie("Movie " + i)));
@@ -292,11 +292,76 @@ public sealed class DigestBuilderTests
 
         var model = Builder.Build(items, new DigestOptions { MaxEntriesPerSection = 10, MaxEntriesPerDigest = 5 });
 
-        Assert.Equal(4, model.Sections[0].Entries.Count);
-        Assert.Single(model.Sections[1].Entries);
-        Assert.Equal(3, model.Sections[1].HiddenEntryCount);
+        Assert.Equal(3, model.Sections[0].Entries.Count);
+        Assert.Equal(2, model.Sections[1].Entries.Count);
+        Assert.Equal(1, model.Sections[0].HiddenEntryCount);
+        Assert.Equal(2, model.Sections[1].HiddenEntryCount);
         Assert.Equal(8, model.Items.Count);
         Assert.Equal(8, model.Sections.Sum(s => s.TotalItemCount));
+        Assert.True(model.HasHiddenEntries);
+    }
+
+    [Fact]
+    public void Build_OneHugeCategory_CannotCrowdOutTheOthers()
+    {
+        var items = new List<DiscoveredMediaItem>();
+        items.AddRange(Enumerable.Range(1, 300).Select(i => Movie("Movie " + i)));
+        items.Add(Album("The only album"));
+        items.Add(Movie("A documentary", MediaCategory.Documentaries));
+
+        var model = Builder.Build(items, new DigestOptions { MaxEntriesPerSection = 200, MaxEntriesPerDigest = 10 });
+
+        Assert.Single(model.Sections.Single(s => s.Category == MediaCategory.Music).Entries);
+        Assert.Single(model.Sections.Single(s => s.Category == MediaCategory.Documentaries).Entries);
+        Assert.Equal(8, model.Sections.Single(s => s.Category == MediaCategory.Movies).Entries.Count);
+        Assert.Equal(10, model.Sections.Sum(s => s.Entries.Count));
+    }
+
+    [Fact]
+    public void Build_SmallCategoriesFreeTheirUnusedShareForTheLargeOne()
+    {
+        var items = new List<DiscoveredMediaItem> { Album("A") };
+        items.AddRange(Enumerable.Range(1, 50).Select(i => Movie("Movie " + i)));
+
+        var model = Builder.Build(items, new DigestOptions { MaxEntriesPerSection = 100, MaxEntriesPerDigest = 20 });
+
+        Assert.Equal(19, model.Sections.Single(s => s.Category == MediaCategory.Movies).Entries.Count);
+        Assert.Single(model.Sections.Single(s => s.Category == MediaCategory.Music).Entries);
+    }
+
+    [Fact]
+    public void Build_FewerSectionsThanBudget_EachSectionGetsAtLeastOne()
+    {
+        var items = new List<DiscoveredMediaItem> { Movie("M1"), Movie("M2"), Album("A1"), Album("A2"), Movie("O", MediaCategory.Other) };
+
+        var model = Builder.Build(items, new DigestOptions { MaxEntriesPerSection = 10, MaxEntriesPerDigest = 3 });
+
+        Assert.All(model.Sections, s => Assert.Single(s.Entries));
+    }
+
+    [Fact]
+    public void Build_NothingHidden_HasNoHiddenEntries()
+    {
+        var model = Builder.Build(new[] { Movie("A"), Album("B") }, DigestOptions.Default);
+
+        Assert.False(model.HasHiddenEntries);
+    }
+
+    [Fact]
+    public void Build_Allocation_IsDeterministicWhateverTheInputOrder()
+    {
+        var items = new List<DiscoveredMediaItem>();
+        items.AddRange(Enumerable.Range(1, 9).Select(i => Movie("Movie " + i)));
+        items.AddRange(Enumerable.Range(1, 9).Select(i => Album("Album " + i)));
+        items.AddRange(Enumerable.Range(1, 9).Select(i => Movie("Doc " + i, MediaCategory.Documentaries)));
+        var options = new DigestOptions { MaxEntriesPerSection = 9, MaxEntriesPerDigest = 10 };
+
+        var first = Builder.Build(items, options);
+        items.Reverse();
+        var second = Builder.Build(items, options);
+
+        Assert.Equal(Snapshot(first), Snapshot(second));
+        Assert.Equal(new[] { 4, 3, 3 }, first.Sections.Select(s => s.Entries.Count));
     }
 
     [Fact]
