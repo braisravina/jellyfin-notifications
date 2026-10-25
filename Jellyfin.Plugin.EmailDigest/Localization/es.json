@@ -8,5 +8,21 @@
   "EmailSubject": "Tu resumen de Jellyfin",
   "Greeting": "Hola {0},",
   "Intro": "Esto es lo nuevo desde tu último resumen:",
-  "Footer": "Este es un mensaje automático de tu servidor Jellyfin."
+  "Footer": "Este es un mensaje automático de tu servidor Jellyfin.",
+  "SectionDocumentaries": "Documentales",
+  "SectionOther": "Otros",
+  "Untitled": "Sin título",
+  "UnknownSeries": "Serie desconocida",
+  "SeasonEpisode": "T{0}E{1}",
+  "SeasonOnly": "Temporada {0}",
+  "EpisodeOnly": "Episodio {0}",
+  "AlbumBy": "de {0}",
+  "EpisodeCountOne": "{0} episodio nuevo",
+  "EpisodeCountOther": "{0} episodios nuevos",
+  "OverflowOne": "y {0} más",
+  "OverflowOther": "y {0} más",
+  "EmptyDigest": "No hay novedades desde tu último resumen.",
+  "SubjectNewOne": "Resumen de Jellyfin: {0} novedad",
+  "SubjectNewOther": "Resumen de Jellyfin: {0} novedades",
+  "GreetingNoName": "Hola,"
 }

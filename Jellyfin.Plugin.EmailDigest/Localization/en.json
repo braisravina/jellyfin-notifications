@@ -8,5 +8,21 @@
   "EmailSubject": "Your Jellyfin Digest",
   "Greeting": "Hello {0},",
   "Intro": "Here's what's new since your last digest:",
-  "Footer": "This is an automated message from your Jellyfin server."
+  "Footer": "This is an automated message from your Jellyfin server.",
+  "SectionDocumentaries": "Documentaries",
+  "SectionOther": "Other",
+  "Untitled": "Untitled",
+  "UnknownSeries": "Unknown series",
+  "SeasonEpisode": "S{0}E{1}",
+  "SeasonOnly": "Season {0}",
+  "EpisodeOnly": "Episode {0}",
+  "AlbumBy": "by {0}",
+  "EpisodeCountOne": "{0} new episode",
+  "EpisodeCountOther": "{0} new episodes",
+  "OverflowOne": "and {0} more",
+  "OverflowOther": "and {0} more",
+  "EmptyDigest": "Nothing new since your last digest.",
+  "SubjectNewOne": "Jellyfin digest: {0} new item",
+  "SubjectNewOther": "Jellyfin digest: {0} new items",
+  "GreetingNoName": "Hello,"
 }
