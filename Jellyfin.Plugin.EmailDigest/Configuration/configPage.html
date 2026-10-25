@@ -8,91 +8,381 @@
     <div id="EmailDigestConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
-                <form id="EmailDigestConfigForm">
-                    <div class="verticalSection">
-                        <h2>Email Digest</h2>
-                        <p>
-                            Phase 2: digest scheduling basics below. SMTP settings and
-                            per-user notification management will appear here in later
-                            phases of development.
-                        </p>
-                    </div>
+
+                <div class="verticalSection">
+                    <h2 data-i18n="AdminTitle">Email Digest</h2>
+                    <p data-i18n="AdminIntro"></p>
+                </div>
+
+                <form id="DigestForm">
+                    <h3 data-i18n="AdminSectionDigest"></h3>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="DigestEnabled" name="DigestEnabled" type="checkbox" is="emby-checkbox" />
-                            <span>Enable digest emails</span>
+                            <input id="DigestEnabled" type="checkbox" is="emby-checkbox" />
+                            <span data-i18n="AdminDigestEnabled"></span>
                         </label>
-                        <div class="fieldDescription">
-                            Master switch for the digest feature. No emails are sent while
-                            this is off, regardless of the scheduled task's own schedule.
-                        </div>
+                        <div class="fieldDescription" data-i18n="AdminDigestEnabledDesc"></div>
                     </div>
                     <div class="selectContainer">
-                        <label class="selectLabel" for="DefaultLanguage">Default language</label>
-                        <select is="emby-select" id="DefaultLanguage" name="DefaultLanguage" class="emby-select-withcolor emby-select">
+                        <label class="selectLabel" for="DefaultLanguage" data-i18n="AdminDefaultLanguage"></label>
+                        <select is="emby-select" id="DefaultLanguage" class="emby-select-withcolor emby-select">
                             <option value="en">English</option>
                             <option value="es">Español</option>
                             <option value="gl">Galego</option>
                         </select>
-                        <div class="fieldDescription">
-                            Used for a user who has not chosen their own digest language.
-                        </div>
+                        <div class="fieldDescription" data-i18n="AdminDefaultLanguageDesc"></div>
                     </div>
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="FallbackLookbackHours">Fallback lookback (hours)</label>
-                        <input id="FallbackLookbackHours" name="FallbackLookbackHours" type="number" is="emby-input" min="0" />
-                        <div class="fieldDescription">
-                            How far back to look for "new" media on the very first digest run,
-                            before any checkpoint exists. Ignored on every later run.
-                        </div>
+                        <label class="inputLabel inputLabelUnfocused" for="FallbackLookbackHours" data-i18n="AdminLookback"></label>
+                        <input id="FallbackLookbackHours" type="number" is="emby-input" min="0" />
+                        <div class="fieldDescription" data-i18n="AdminLookbackDesc"></div>
                     </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
-                            <span>Save</span>
+                            <span data-i18n="AdminSave"></span>
                         </button>
                     </div>
+                    <div id="DigestMessage" class="fieldDescription" role="status" aria-live="polite"></div>
                 </form>
+
+                <form id="SmtpForm" autocomplete="off">
+                    <h3 data-i18n="AdminSectionSmtp"></h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="SmtpEnabled" type="checkbox" is="emby-checkbox" />
+                            <span data-i18n="AdminSmtpEnabled"></span>
+                        </label>
+                        <div class="fieldDescription" data-i18n="AdminSmtpEnabledDesc"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SmtpHost" data-i18n="AdminHost"></label>
+                        <input id="SmtpHost" type="text" is="emby-input" maxlength="253" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SmtpPort" data-i18n="AdminPort"></label>
+                        <input id="SmtpPort" type="number" is="emby-input" min="1" max="65535" />
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="SmtpSecurity" data-i18n="AdminSecurity"></label>
+                        <select is="emby-select" id="SmtpSecurity" class="emby-select-withcolor emby-select">
+                            <option value="StartTls" data-i18n="AdminSecurityStartTls"></option>
+                            <option value="ImplicitTls" data-i18n="AdminSecurityImplicit"></option>
+                            <option value="None" data-i18n="AdminSecurityNone"></option>
+                        </select>
+                        <div id="UnencryptedWarning" class="fieldDescription" role="alert" hidden data-i18n="AdminUnencryptedWarning"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SmtpUsername" data-i18n="AdminUsername"></label>
+                        <input id="SmtpUsername" type="text" is="emby-input" maxlength="256" autocomplete="off" />
+                        <div class="fieldDescription" data-i18n="AdminUsernameDesc"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SenderAddress" data-i18n="AdminSenderAddress"></label>
+                        <input id="SenderAddress" type="email" is="emby-input" maxlength="254" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SenderName" data-i18n="AdminSenderName"></label>
+                        <input id="SenderName" type="text" is="emby-input" maxlength="100" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SmtpTimeout" data-i18n="AdminTimeout"></label>
+                        <input id="SmtpTimeout" type="number" is="emby-input" min="5" max="120" />
+                    </div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span data-i18n="AdminSave"></span>
+                        </button>
+                    </div>
+                    <div id="SmtpMessage" class="fieldDescription" role="status" aria-live="polite"></div>
+                </form>
+
+                <form id="PasswordForm" autocomplete="off">
+                    <h3 data-i18n="AdminSectionPassword"></h3>
+                    <div id="PasswordStatus" class="fieldDescription" role="status" aria-live="polite"></div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="NewPassword" data-i18n="AdminPasswordNew"></label>
+                        <input id="NewPassword" type="password" is="emby-input" maxlength="512" autocomplete="new-password" autocapitalize="off" spellcheck="false" />
+                        <div class="fieldDescription" data-i18n="AdminPasswordDesc"></div>
+                    </div>
+                    <div>
+                        <button id="PasswordSetButton" is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span data-i18n="AdminPasswordSet"></span>
+                        </button>
+                        <button id="PasswordClearButton" is="emby-button" type="button" class="raised block emby-button">
+                            <span data-i18n="AdminPasswordClear"></span>
+                        </button>
+                    </div>
+                    <div id="PasswordMessage" class="fieldDescription" role="status" aria-live="polite"></div>
+                </form>
+
+                <form id="TestForm" autocomplete="off">
+                    <h3 data-i18n="AdminSectionTest"></h3>
+                    <div id="TestHint" class="fieldDescription" role="status" data-i18n="AdminTestSaveFirst"></div>
+                    <div>
+                        <button id="TestConnectionButton" is="emby-button" type="button" class="raised block emby-button">
+                            <span data-i18n="AdminTestConnection"></span>
+                        </button>
+                        <div class="fieldDescription" data-i18n="AdminTestConnectionDesc"></div>
+                        <div id="ConnectionMessage" class="fieldDescription" role="status" aria-live="polite"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="TestRecipient" data-i18n="AdminTestRecipient"></label>
+                        <input id="TestRecipient" type="email" is="emby-input" maxlength="254" autocomplete="off" />
+                    </div>
+                    <div>
+                        <button id="TestSendButton" is="emby-button" type="submit" class="raised block emby-button">
+                            <span data-i18n="AdminTestSend"></span>
+                        </button>
+                        <div class="fieldDescription" data-i18n="AdminTestSendDesc"></div>
+                        <div id="TestMessage" class="fieldDescription" role="status" aria-live="polite"></div>
+                    </div>
+                </form>
+
             </div>
         </div>
         <script type="text/javascript">
-            var EmailDigestConfig = {
-                pluginUniqueId: '0e2dad96-d957-4026-8abb-0ca78068c5f0'
-            };
+            (function () {
+                'use strict';
 
-            document.querySelector('#EmailDigestConfigPage')
-                .addEventListener('pageshow', function () {
-                    Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(EmailDigestConfig.pluginUniqueId).then(function (config) {
-                        document.querySelector('#DigestEnabled').checked = config.DigestEnabled;
-                        document.querySelector('#DefaultLanguage').value = config.DefaultLanguage;
-                        document.querySelector('#FallbackLookbackHours').value = config.FallbackLookbackHours;
-                        Dashboard.hideLoadingMsg();
+                var pluginId = '0e2dad96-d957-4026-8abb-0ca78068c5f0';
+                var page = document.querySelector('#EmailDigestConfigPage');
+                var strings = {};
+                var smtpDirty = false;
+                var passwordStatus = null;
+
+                function $(selector) { return page.querySelector(selector); }
+                function language() { return ((navigator.language || 'en') + '').toLowerCase().slice(0, 2); }
+                function t(key) { return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : ''; }
+
+                // All server- and user-derived text is written with textContent, never as markup.
+                function say(selector, text, isError) {
+                    var element = $(selector);
+                    element.textContent = text || '';
+                    element.style.color = isError ? '#e57373' : '';
+                }
+
+                function applyStrings() {
+                    page.querySelectorAll('[data-i18n]').forEach(function (element) {
+                        var text = t(element.getAttribute('data-i18n'));
+                        if (text) { element.textContent = text; }
                     });
-                });
+                }
 
-            document.querySelector('#EmailDigestConfigForm')
-                .addEventListener('submit', function (e) {
-                    Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(EmailDigestConfig.pluginUniqueId).then(function (config) {
-                        // SMTP fields are intentionally not read or written here: the generic
-                        // plugin configuration endpoint has no field-level masking, so exposing
-                        // SmtpPassword to this form would return it to the browser in plain
-                        // text on every page load. A masked, purpose-built endpoint for those
-                        // fields is added in Phase 5.
-                        config.DigestEnabled = document.querySelector('#DigestEnabled').checked;
-                        config.DefaultLanguage = document.querySelector('#DefaultLanguage').value;
-                        config.FallbackLookbackHours = parseInt(document.querySelector('#FallbackLookbackHours').value, 10) || 0;
-                        ApiClient.updatePluginConfiguration(EmailDigestConfig.pluginUniqueId, config).then(function (result) {
-                            Dashboard.processPluginConfigurationUpdateResult(result);
-                        }, function () {
-                            Dashboard.hideLoadingMsg();
-                            Dashboard.alert('Failed to save Email Digest settings. Check the values and try again.');
+                // Jellyfin serialises API JSON with PascalCase names; this makes the page indifferent
+                // to the casing so a server-side naming change cannot silently blank the form.
+                function pascal(value) {
+                    if (Array.isArray(value)) { return value.map(pascal); }
+                    if (value && typeof value === 'object') {
+                        var result = {};
+                        Object.keys(value).forEach(function (key) {
+                            result[key.charAt(0).toUpperCase() + key.slice(1)] = pascal(value[key]);
                         });
-                    });
+                        return result;
+                    }
+                    return value;
+                }
 
+                // Reads a failed response into { status, body }. The body is only ever one of this
+                // plugin's own structured error objects.
+                function failure(response) {
+                    if (response && typeof response.json === 'function') {
+                        return response.json().then(
+                            function (body) { return { status: response.status, body: pascal(body) }; },
+                            function () { return { status: response.status, body: null }; });
+                    }
+                    return Promise.resolve({ status: 0, body: null });
+                }
+
+                function api(method, path, body) {
+                    var options = { type: method, url: ApiClient.getUrl('EmailDigest/Admin/' + path), dataType: 'json' };
+                    if (body !== undefined) {
+                        options.data = JSON.stringify(body);
+                        options.contentType = 'application/json';
+                    }
+                    return ApiClient.ajax(options).then(pascal, function (response) {
+                        return failure(response).then(function (error) { throw error; });
+                    });
+                }
+
+                function describeError(error, fallbackKey) {
+                    if (error && error.body && error.body.Errors && error.body.Errors.length) {
+                        return t(fallbackKey) + ' ' + error.body.Errors.join(' ');
+                    }
+                    return t(fallbackKey || 'AdminUnexpected');
+                }
+
+                function showPasswordStatus(status) {
+                    passwordStatus = status;
+                    var key = 'AdminPasswordStatus' + status.Source;
+                    say('#PasswordStatus', t(key));
+                    var external = status.Source === 'External';
+                    $('#NewPassword').disabled = external;
+                    $('#PasswordSetButton').disabled = external;
+                    $('#PasswordClearButton').disabled = external || !status.IsSet;
+                }
+
+                function fillSmtp(settings) {
+                    $('#SmtpEnabled').checked = settings.SmtpEnabled;
+                    $('#SmtpHost').value = settings.Host;
+                    $('#SmtpPort').value = settings.Port;
+                    $('#SmtpSecurity').value = settings.Security;
+                    $('#SmtpUsername').value = settings.Username;
+                    $('#SenderAddress').value = settings.SenderAddress;
+                    $('#SenderName').value = settings.SenderName;
+                    $('#SmtpTimeout').value = settings.TimeoutSeconds;
+                    showPasswordStatus(settings.Password);
+                    refreshSecurityState();
+                    setDirty(false);
+                }
+
+                function setDirty(value) {
+                    smtpDirty = value;
+                    $('#TestConnectionButton').disabled = value;
+                    $('#TestSendButton').disabled = value;
+                    $('#TestHint').hidden = !value;
+                }
+
+                function refreshSecurityState() {
+                    var unencrypted = $('#SmtpSecurity').value === 'None';
+                    $('#UnencryptedWarning').hidden = !unencrypted;
+                    $('#SmtpUsername').disabled = unencrypted;
+                    if (unencrypted) { $('#SmtpUsername').value = ''; }
+                }
+
+                function outcomeText(result) {
+                    var text = result.Message || '';
+                    if (result.SmtpStatusCode) { text += ' (SMTP ' + result.SmtpStatusCode + ')'; }
+                    return text;
+                }
+
+                function load() {
+                    Dashboard.showLoadingMsg();
+                    var lang = encodeURIComponent(language());
+                    return api('GET', 'Strings?language=' + lang).then(function (response) {
+                        strings = response.Strings || {};
+                        applyStrings();
+                        return Promise.all([
+                            ApiClient.getPluginConfiguration(pluginId),
+                            api('GET', 'Settings')
+                        ]);
+                    }).then(function (results) {
+                        var config = results[0];
+                        $('#DigestEnabled').checked = config.DigestEnabled;
+                        $('#DefaultLanguage').value = config.DefaultLanguage;
+                        $('#FallbackLookbackHours').value = config.FallbackLookbackHours;
+                        fillSmtp(results[1]);
+                        Dashboard.hideLoadingMsg();
+                    }).catch(function () {
+                        Dashboard.hideLoadingMsg();
+                        say('#SmtpMessage', t('AdminUnexpected') || 'Could not load the settings.', true);
+                    });
+                }
+
+                page.addEventListener('pageshow', function () { load(); });
+
+                ['#SmtpEnabled', '#SmtpHost', '#SmtpPort', '#SmtpSecurity', '#SmtpUsername', '#SenderAddress', '#SenderName', '#SmtpTimeout']
+                    .forEach(function (selector) {
+                        $(selector).addEventListener('change', function () { setDirty(true); });
+                        $(selector).addEventListener('input', function () { setDirty(true); });
+                    });
+                $('#SmtpSecurity').addEventListener('change', refreshSecurityState);
+
+                // Digest settings: the generic configuration holds no secret. The current value is
+                // re-read so SMTP settings saved on this page are never overwritten by a stale copy.
+                $('#DigestForm').addEventListener('submit', function (e) {
                     e.preventDefault();
+                    say('#DigestMessage', t('AdminWorking'));
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.DigestEnabled = $('#DigestEnabled').checked;
+                        config.DefaultLanguage = $('#DefaultLanguage').value;
+                        config.FallbackLookbackHours = parseInt($('#FallbackLookbackHours').value, 10) || 0;
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function () {
+                        say('#DigestMessage', t('AdminSaved'));
+                    }, function () {
+                        say('#DigestMessage', t('AdminSaveFailed'), true);
+                    });
                     return false;
                 });
+
+                $('#SmtpForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    say('#SmtpMessage', t('AdminWorking'));
+                    api('PUT', 'Settings', {
+                        SmtpEnabled: $('#SmtpEnabled').checked,
+                        Host: $('#SmtpHost').value,
+                        Port: parseInt($('#SmtpPort').value, 10) || 0,
+                        Security: $('#SmtpSecurity').value,
+                        Username: $('#SmtpUsername').value,
+                        SenderAddress: $('#SenderAddress').value,
+                        SenderName: $('#SenderName').value,
+                        TimeoutSeconds: parseInt($('#SmtpTimeout').value, 10) || 0
+                    }).then(function (settings) {
+                        fillSmtp(settings);
+                        say('#SmtpMessage', t('AdminSaved'));
+                    }, function (error) {
+                        say('#SmtpMessage', describeError(error, 'AdminSaveFailed'), true);
+                    });
+                    return false;
+                });
+
+                // The password is sent once, in a request body, and the field is emptied immediately.
+                $('#PasswordForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var field = $('#NewPassword');
+                    var value = field.value;
+                    field.value = '';
+                    if (!value) { return false; }
+                    say('#PasswordMessage', t('AdminWorking'));
+                    api('PUT', 'Password', { Password: value }).then(function (status) {
+                        showPasswordStatus(status);
+                        say('#PasswordMessage', t('AdminPasswordSaved'));
+                    }, function (error) {
+                        var key = error && error.status === 409 ? 'AdminPasswordExternal'
+                            : (error && error.status === 400 ? 'AdminPasswordInvalid' : 'AdminUnexpected');
+                        say('#PasswordMessage', t(key), true);
+                    });
+                    value = null;
+                    return false;
+                });
+
+                $('#PasswordClearButton').addEventListener('click', function () {
+                    say('#PasswordMessage', t('AdminWorking'));
+                    api('DELETE', 'Password').then(function (status) {
+                        showPasswordStatus(status);
+                        say('#PasswordMessage', t('AdminPasswordCleared'));
+                    }, function (error) {
+                        say('#PasswordMessage', t(error && error.status === 409 ? 'AdminPasswordExternal' : 'AdminUnexpected'), true);
+                    });
+                });
+
+                $('#TestConnectionButton').addEventListener('click', function () {
+                    say('#ConnectionMessage', t('AdminWorking'));
+                    api('POST', 'TestConnection?language=' + encodeURIComponent(language())).then(function (result) {
+                        say('#ConnectionMessage', outcomeText(result), result.Category !== 'ok');
+                    }, function () {
+                        say('#ConnectionMessage', t('AdminUnexpected'), true);
+                    });
+                });
+
+                $('#TestForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var recipient = $('#TestRecipient').value.trim();
+                    if (!recipient || recipient.indexOf('@') < 1) {
+                        say('#TestMessage', t('AdminInvalidRecipient'), true);
+                        return false;
+                    }
+                    say('#TestMessage', t('AdminWorking'));
+                    api('POST', 'TestEmail?language=' + encodeURIComponent(language()), { Recipient: recipient }).then(function (result) {
+                        say('#TestMessage', outcomeText(result), result.Category !== 'ok');
+                    }, function (error) {
+                        var key = error && error.status === 429 ? 'AdminThrottled'
+                            : (error && error.status === 400 ? 'AdminInvalidRecipient' : 'AdminUnexpected');
+                        say('#TestMessage', t(key), true);
+                    });
+                    return false;
+                });
+            })();
         </script>
     </div>
 </body>
