@@ -6,15 +6,23 @@ user, filtered strictly by what that user is authorized to see in Jellyfin.
 Replaces a standalone notifier (Docker container + JSON user mappings + cron/systemd
 timer + separate web UI) with a native Jellyfin plugin.
 
-**Status: Phase 3 (media discovery and access control) implemented and unit-tested; not
-live-verified.** Nothing calls discovery yet, and there is no email rendering, no SMTP
-sending and no digest orchestration — see Phases below and "Media discovery" for details.
+**Status: Phase 4 (categorization and email rendering) implemented and unit-tested; not
+live-verified.** Discovery, the digest model and the renderers exist but nothing calls them
+yet: there is no SMTP sending and no digest orchestration. Nothing is ever sent. See Phases
+below.
 
 ## Media discovery
 
 `MediaDiscoveryService` finds items added to the monitored libraries inside an explicit UTC
 window (`fromUtc` exclusive, `toUtc` inclusive) that a given Jellyfin user may see.
 
+- **Categories:** every result carries the stable `LibraryId` it came from and the category
+  the administrator configured for that library (`Movies`, `Series`, `Anime`, `Documentaries`,
+  `Music`, `Other`). The category comes *only* from that explicit mapping: Jellyfin has no
+  Anime library type, so an episode is `Anime` because it sits in a library mapped to Anime,
+  never because of its item type or its library's name. Renaming a library changes nothing.
+  Libraries are queried once each (not once per item). A library listed twice keeps its first
+  category, and an item returned for two libraries is kept once, under the first.
 - **Supported media:** movies, episodes and music albums (an album stands in for its
   tracks). Series, seasons, collections, individual tracks and everything else are
   excluded. Results are de-duplicated by item id, and missing metadata stays `null`.
@@ -39,8 +47,6 @@ window (`fromUtc` exclusive, `toUtc` inclusive) that a given Jellyfin user may s
 
 - Discovery and validation are registered but not called by anything yet; the scheduled task
   is still a stub.
-- Items are not tagged with the monitored library's category (Movies/Series/Anime/Music), so
-  Anime cannot yet be separated from Series. Needed for Phase 4.
 - Music is reported per album; single audio tracks are not supported.
 - `JellyfinLibraryAccessResolver` (the Jellyfin-facing half of access control) has no unit
   tests because `CollectionFolder` needs Jellyfin's static service locator; unit tests use a
@@ -51,6 +57,45 @@ window (`fromUtc` exclusive, `toUtc` inclusive) that a given Jellyfin user may s
   packages. It has not been run against a real server.
 
 Live-verification steps: `docs/phase3-live-verification.md`.
+
+## Digest model and rendering
+
+`DigestBuilder` groups discovered items into a presentation-independent `DigestModel`;
+`DigestRenderer` turns it into a localized subject, HTML body and plain-text body. Neither
+sends anything, reads or writes checkpoints, or calls Jellyfin.
+
+- **Model:** sections appear in a fixed order (Movies, Series, Anime, Documentaries, Music,
+  Other); empty ones are omitted. Movies and albums are one entry each; episodes group under
+  their series (series id, else case-insensitive name, else one "unknown series" entry).
+  Entries sort by title then id; episodes by season, number, title, id. The same items in any
+  order give the same model, and duplicate item ids collapse.
+- **Limits:** `DigestOptions` caps entries per section (default 25) and per digest (default
+  100). Limits hide whole entries only, and every section reports exact hidden counts for
+  "and N more". The digest cap is spent in section order. `DigestModel.Items` always holds
+  *every* eligible item, so delivery accounting must use it and never the displayed entries.
+- **Localization:** English (`en`), Spanish (`es`) and Galician (`gl`), via `DigestText`. The
+  recipient's language is used; a missing or unsupported one falls back to **English**, as does
+  any key missing from a language. Plurals use a singular form for exactly 1 and a plural form
+  otherwise (right for all three languages). The Spanish and Galician wording has not had a
+  native-speaker review.
+- **Rendering:** the HTML and text bodies are written from one localized view, so they carry
+  the same content and grouping. A series lists at most 10 episodes, then "and N more" (wording
+  only). Missing titles, numbers, years and artists become localized placeholders.
+- **HTML security:** every dynamic value is first cleaned (control characters and line breaks
+  become a space, bidirectional overrides are dropped, whitespace collapses, values over 200
+  characters are cut) and then HTML-encoded. The only literal markup is the fixed template:
+  inline CSS, no scripts, links, images, fonts, forms, style blocks or external resources, so
+  there is no tracking and no tokens in URLs. Item ids, library ids and paths are never rendered.
+- **Failures:** rendering errors raise `DigestRenderException`; a caller must treat that as
+  "nothing delivered" and not advance the checkpoint.
+- **Limitations:** the HTML was verified by tests and by reading it, not in real mail clients
+  (no Outlook, Gmail or Apple Mail rendering check); there is no dark-mode styling (fixed light
+  colours); the 10-episode cap and the default limits are not yet configurable by the
+  administrator; nothing calls the builder or renderer yet.
+
+Golden files in `Jellyfin.Plugin.EmailDigest.Tests/Golden/` hold the exact expected output for
+en/es/gl. After an intentional wording or layout change, regenerate them with
+`UPDATE_GOLDEN=1 dotnet test` and review the diff before committing.
 
 ## Persistence and secrets
 
@@ -79,7 +124,8 @@ Live-verification steps: `docs/phase3-live-verification.md`.
    localization resources).
 3. Media discovery and access control — implemented and unit-tested (90 tests); **not
    live-verified**. Not yet called by the scheduled task.
-4. Email rendering — not started.
+4. Categorization and email rendering — implemented and unit-tested (200 tests); **not
+   live-verified** and not yet called by the scheduled task. Nothing is sent.
 5. SMTP — not started.
 6. Complete scheduled digest — not started.
 7. User self-service — not started.
@@ -120,8 +166,12 @@ dotnet test
 
 Tests never send real email and never touch a live Jellyfin server; they exercise
 plugin logic in isolation (config validation, per-user preference storage, checkpoint
-storage, localization, media discovery and library validation) using temp-directory-backed
+storage, localization, media discovery, library validation, digest building and rendering) using temp-directory-backed
 fakes, mocked Jellyfin interfaces and in-process instances.
+
+Phase 4 adds tests for category tagging (including Anime versus Series), digest grouping,
+ordering and limits, wording in all three languages, HTML escaping and injection attempts,
+HTML/text parity, rendering failures and golden files.
 
 Phase 3 test coverage: user-scoped access (inaccessible, deleted and non-library ids; mixed
 libraries; different users), empty and duplicate configuration, supported and unsupported
