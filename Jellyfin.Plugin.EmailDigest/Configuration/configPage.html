@@ -319,7 +319,7 @@
                         TimeoutSeconds: parseInt($('#SmtpTimeout').value, 10) || 0
                     }).then(function (settings) {
                         fillSmtp(settings);
-                        say('#SmtpMessage', t('AdminSaved'));
+                        say('#SmtpMessage', settings.PasswordCleared ? t('AdminPasswordReenter') : t('AdminSaved'));
                     }, function (error) {
                         say('#SmtpMessage', describeError(error, 'AdminSaveFailed'), true);
                     });

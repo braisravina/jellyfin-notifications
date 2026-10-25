@@ -159,11 +159,12 @@ What it does **not** protect against, stated plainly:
 - A Docker secret is also readable by the Jellyfin process and by whoever can read the secret file
   on the host. It avoids storing the password inside the plugin folder and in its backups, which is
   why it is preferred.
-- **A Jellyfin administrator can redirect the stored password.** An administrator can change the
-  host to a server they control and press "Test connection"; the saved password is then sent to
-  that server (over verified TLS, so it needs a valid certificate for that name). Treat plugin
-  administrators as trusted with the SMTP account, and use a mail account that is dedicated to
-  this purpose and limited to sending.
+- **Changing the server discards the saved password.** If the host, port or username changes (on
+  the plugin page or through Jellyfin's generic configuration endpoint), the saved password is
+  removed and must be entered again, so an administrator cannot simply repoint the saved password at
+  a server they control. A Docker-secret password is chosen by the deployment and is not affected.
+  Anyone who can both change the host *and* knows or supplies a password is, of course, unaffected
+  by this: treat plugin administrators as trusted with the SMTP account.
 - Use an account used only for this plugin, so a leaked password has a small blast radius.
 
 ### Administrator API and access

@@ -62,6 +62,7 @@ public static class AdminStringKeys
         "AdminPasswordStatusExternal",
         "AdminPasswordSaved",
         "AdminPasswordCleared",
+        "AdminPasswordReenter",
         "AdminPasswordInvalid",
         "AdminPasswordExternal",
         "AdminSectionTest",

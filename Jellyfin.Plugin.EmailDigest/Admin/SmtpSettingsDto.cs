@@ -13,6 +13,10 @@ namespace Jellyfin.Plugin.EmailDigest.Admin;
 /// <param name="SenderName">The sender display name.</param>
 /// <param name="TimeoutSeconds">The timeout in seconds.</param>
 /// <param name="Password">Whether a password exists and where it comes from.</param>
+/// <param name="PasswordCleared">
+/// True only in the response to a change that removed the stored password because the server it
+/// was entered for changed; the administrator must enter it again.
+/// </param>
 public sealed record SmtpSettingsDto(
     bool SmtpEnabled,
     string Host,
@@ -22,4 +26,5 @@ public sealed record SmtpSettingsDto(
     string SenderAddress,
     string SenderName,
     int TimeoutSeconds,
-    SmtpPasswordStatusDto Password);
+    SmtpPasswordStatusDto Password,
+    bool PasswordCleared = false);

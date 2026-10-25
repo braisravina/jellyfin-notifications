@@ -86,5 +86,6 @@
   "AdminInvalidRecipient": "Introduce una dirección de correo válida.",
   "AdminThrottled": "Espera unos segundos antes de enviar otro correo de prueba.",
   "AdminWorking": "Trabajando...",
-  "AdminUnexpected": "Algo salió mal. Consulta el registro de Jellyfin."
+  "AdminUnexpected": "Algo salió mal. Consulta el registro de Jellyfin.",
+  "AdminPasswordReenter": "La configuración del servidor SMTP cambió, así que se eliminó la contraseña guardada. Vuelve a introducir la contraseña."
 }

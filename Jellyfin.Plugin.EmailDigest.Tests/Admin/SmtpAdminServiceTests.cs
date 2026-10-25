@@ -169,6 +169,41 @@ public sealed class SmtpAdminServiceTests : IDisposable
         Assert.Equal(Secret, await _passwords.ReadAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task UpdateSettings_ChangingTheHost_ReportsThatTheStoredPasswordWasRemoved()
+    {
+        // Stands in for Plugin.UpdateConfiguration, which applies the same policy before saving.
+        _configuration.OnSave = (current, next) =>
+        {
+            if (ConfigurationChangePolicy.MustClearStoredPassword(current, next))
+            {
+                _passwords.ClearAsync(CancellationToken.None).GetAwaiter().GetResult();
+            }
+        };
+        var service = Service();
+        service.UpdateSettings(ValidUpdate());
+        await _passwords.SetAsync(Secret, CancellationToken.None);
+
+        var response = service.UpdateSettings(ValidUpdate() with { Host = "other.example.com" });
+
+        var dto = Assert.IsType<SmtpSettingsDto>(response.Body);
+        Assert.True(dto.PasswordCleared);
+        Assert.False(dto.Password.IsSet);
+    }
+
+    [Fact]
+    public async Task UpdateSettings_WithoutServerChange_DoesNotReportPasswordCleared()
+    {
+        var service = Service();
+        service.UpdateSettings(ValidUpdate());
+        await _passwords.SetAsync(Secret, CancellationToken.None);
+
+        var dto = (SmtpSettingsDto)service.UpdateSettings(ValidUpdate() with { SenderName = "Other" }).Body!;
+
+        Assert.False(dto.PasswordCleared);
+        Assert.True(dto.Password.IsSet);
+    }
+
     // Password lifecycle
 
     [Fact]
@@ -415,6 +450,8 @@ public sealed class SmtpAdminServiceTests : IDisposable
 
         public int SaveCount { get; private set; }
 
+        public Action<PluginConfiguration, PluginConfiguration>? OnSave { get; set; }
+
         public PluginConfiguration GetCopy()
         {
             var copy = new PluginConfiguration
@@ -441,6 +478,7 @@ public sealed class SmtpAdminServiceTests : IDisposable
 
         public void Save(PluginConfiguration configuration)
         {
+            OnSave?.Invoke(Current, configuration);
             Current = configuration;
             SaveCount++;
         }

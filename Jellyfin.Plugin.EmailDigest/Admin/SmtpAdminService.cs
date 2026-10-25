@@ -92,6 +92,8 @@ public sealed class SmtpAdminService
         }
 
         var configuration = _configuration.GetCopy();
+        var before = _configuration.GetCopy();
+        var hadStoredPassword = _passwords.GetStatus().Source == SmtpPasswordSource.Stored;
         configuration.SmtpEnabled = update.SmtpEnabled;
         configuration.SmtpHost = (update.Host ?? string.Empty).Trim();
         configuration.SmtpPort = update.Port;
@@ -117,7 +119,13 @@ public sealed class SmtpAdminService
         }
 
         _logger.LogInformation("SMTP settings were updated by an administrator.");
-        return new AdminResponse(200, ToDto(_configuration.GetCopy()));
+
+        // Plugin.UpdateConfiguration removes the stored password when the server it was entered
+        // for changes; report it so the page can ask for the password again.
+        var cleared = hadStoredPassword
+                      && ConfigurationChangePolicy.MustClearStoredPassword(before, configuration)
+                      && _passwords.GetStatus().Source != SmtpPasswordSource.Stored;
+        return new AdminResponse(200, ToDto(_configuration.GetCopy()) with { PasswordCleared = cleared });
     }
 
     /// <summary>
