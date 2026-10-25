@@ -244,6 +244,7 @@ public sealed class SmtpAdminService
             EmailTransportOutcome.InvalidRequest => "configuration",
             EmailTransportOutcome.ConnectionFailed or EmailTransportOutcome.Timeout or EmailTransportOutcome.Cancelled => "connectivity",
             EmailTransportOutcome.TlsFailed => "tls",
+            EmailTransportOutcome.Uncertain => "other",
             EmailTransportOutcome.AuthenticationFailed => "authentication",
             EmailTransportOutcome.RecipientRejected or EmailTransportOutcome.SenderRejected => "recipient",
             _ => "other"

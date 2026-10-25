@@ -108,5 +108,6 @@
   "AdminCategoryMusic": "Música",
   "AdminCategoryOther": "Outros",
   "AdminChooseCategory": "Escolle unha sección",
-  "ContinuationNote": "O que non cabía non se perde: aparecerá no teu próximo resumo."
+  "ContinuationNote": "O que non cabía non se perde: aparecerá no teu próximo resumo.",
+  "AdminOutcomeUncertain": "A conexión fallou mentres se enviaba a mensaxe, así que non se sabe se o servidor a aceptou. Revisa a túa caixa de correo antes de volver tentalo."
 }

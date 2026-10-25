@@ -12,4 +12,15 @@ namespace Jellyfin.Plugin.EmailDigest.Email;
 /// <param name="Subject">The single-line subject.</param>
 /// <param name="TextBody">The plain-text body.</param>
 /// <param name="HtmlBody">The HTML body.</param>
-public sealed record OutgoingEmail(string RecipientAddress, string? RecipientName, string Subject, string TextBody, string HtmlBody);
+/// <param name="MessageIdLocalPart">
+/// An optional deterministic Message-ID local part (letters, digits, dot, dash, underscore; 8 to
+/// 128 characters). When the same digest is sent again it carries the same id, which helps diagnosis
+/// and lets some mail clients or providers recognise a repeat, but nothing assumes they do.
+/// </param>
+public sealed record OutgoingEmail(
+    string RecipientAddress,
+    string? RecipientName,
+    string Subject,
+    string TextBody,
+    string HtmlBody,
+    string? MessageIdLocalPart = null);

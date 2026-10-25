@@ -56,5 +56,13 @@ public enum EmailTransportOutcome
     /// <summary>
     /// Anything else, including SMTP errors not covered above.
     /// </summary>
-    UnexpectedError = 9
+    UnexpectedError = 9,
+
+    /// <summary>
+    /// The connection failed or timed out while the message was being handed over, after sending
+    /// had begun. The server may or may not have accepted it: the plugin cannot know. Callers must
+    /// treat it as not confirmed (so nothing is marked delivered) while accepting that a later
+    /// resend may produce a duplicate. It is never retried immediately.
+    /// </summary>
+    Uncertain = 10
 }

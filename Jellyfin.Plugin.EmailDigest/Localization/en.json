@@ -108,5 +108,6 @@
   "AdminCategoryMusic": "Music",
   "AdminCategoryOther": "Other",
   "AdminChooseCategory": "Choose a section",
-  "ContinuationNote": "Items that did not fit are not lost: they will be included in your next digest."
+  "ContinuationNote": "Items that did not fit are not lost: they will be included in your next digest.",
+  "AdminOutcomeUncertain": "The connection failed while the message was being sent, so it is not known whether the server accepted it. Check your mailbox before trying again."
 }

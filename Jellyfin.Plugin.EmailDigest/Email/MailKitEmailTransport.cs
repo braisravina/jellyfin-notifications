@@ -129,7 +129,7 @@ public sealed class MailKitEmailTransport : IEmailTransport
                 return new EmailTransportResult(EmailTransportOutcome.TlsFailed);
 
             case TimeoutException:
-                return new EmailTransportResult(EmailTransportOutcome.Timeout);
+                return new EmailTransportResult(phase == Phase.Send ? EmailTransportOutcome.Uncertain : EmailTransportOutcome.Timeout);
 
             case NotSupportedException:
                 // MailKit raises this when STARTTLS or AUTH is required but the server lacks it.
@@ -144,9 +144,14 @@ public sealed class MailKitEmailTransport : IEmailTransport
             case IOException:
             case ServiceNotConnectedException:
             case ProtocolException:
-                return new EmailTransportResult(phase == Phase.Connect
-                    ? EmailTransportOutcome.ConnectionFailed
-                    : EmailTransportOutcome.UnexpectedError);
+                // Once sending has begun, a dropped connection means the outcome is unknown: the
+                // server may have accepted the message just before the link failed.
+                return new EmailTransportResult(phase switch
+                {
+                    Phase.Connect => EmailTransportOutcome.ConnectionFailed,
+                    Phase.Send => EmailTransportOutcome.Uncertain,
+                    _ => EmailTransportOutcome.UnexpectedError
+                });
 
             default:
                 return new EmailTransportResult(EmailTransportOutcome.UnexpectedError);
@@ -223,7 +228,9 @@ public sealed class MailKitEmailTransport : IEmailTransport
         }
         catch (OperationCanceledException)
         {
-            var outcome = cancellationToken.IsCancellationRequested ? EmailTransportOutcome.Cancelled : EmailTransportOutcome.Timeout;
+            var outcome = cancellationToken.IsCancellationRequested
+                ? EmailTransportOutcome.Cancelled
+                : (phase == Phase.Send ? EmailTransportOutcome.Uncertain : EmailTransportOutcome.Timeout);
             _logger.LogWarning("SMTP operation to {Host}:{Port} ended: {Outcome}.", settings.Host, settings.Port, outcome);
             return new EmailTransportResult(outcome);
         }

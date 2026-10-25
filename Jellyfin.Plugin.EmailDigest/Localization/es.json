@@ -108,5 +108,6 @@
   "AdminCategoryMusic": "Música",
   "AdminCategoryOther": "Otros",
   "AdminChooseCategory": "Elige una sección",
-  "ContinuationNote": "Lo que no cupo no se pierde: aparecerá en tu próximo resumen."
+  "ContinuationNote": "Lo que no cupo no se pierde: aparecerá en tu próximo resumen.",
+  "AdminOutcomeUncertain": "La conexión falló mientras se enviaba el mensaje, así que no se sabe si el servidor lo aceptó. Revisa tu buzón antes de volver a intentarlo."
 }

@@ -264,6 +264,93 @@ public sealed class MailKitEmailTransportTests
         Assert.Equal(EmailTransportOutcome.Cancelled, result.Outcome);
     }
 
+    // Uncertain outcomes: the connection fails after sending began, so acceptance is unknown.
+
+    [Fact]
+    public async Task Send_ReplyToTheDataCommandIsLost_ReportsUncertainEvenThoughTheServerGotTheMessage()
+    {
+        using var server = new FakeSmtpServer { DropAfterData = true };
+
+        var result = await Trusting.SendAsync(Settings(server, SmtpSecurityMode.None), Email(), CancellationToken.None);
+
+        Assert.Equal(EmailTransportOutcome.Uncertain, result.Outcome);
+        Assert.False(result.IsAccepted);
+        Assert.Single(server.Messages);
+    }
+
+    [Fact]
+    public async Task Send_ServerStopsAnsweringAfterTheData_ReportsUncertainNotTimeout()
+    {
+        using var server = new FakeSmtpServer { HangAfterData = true };
+
+        var result = await Trusting.SendAsync(Settings(server, SmtpSecurityMode.None, timeout: 1), Email(), CancellationToken.None);
+
+        Assert.Equal(EmailTransportOutcome.Uncertain, result.Outcome);
+    }
+
+    [Fact]
+    public async Task Send_ConnectionDropsWhileSending_IsConservativelyUncertain()
+    {
+        using var server = new FakeSmtpServer { DropAtRecipient = true };
+
+        var result = await Trusting.SendAsync(Settings(server, SmtpSecurityMode.None), Email(), CancellationToken.None);
+
+        Assert.Equal(EmailTransportOutcome.Uncertain, result.Outcome);
+        Assert.Empty(server.Messages);
+    }
+
+    [Fact]
+    public async Task Send_ConnectionDropsBeforeAnythingIsSent_IsAPlainConnectionFailure()
+    {
+        using var server = new FakeSmtpServer { DropAtGreeting = true };
+
+        var result = await Trusting.SendAsync(Settings(server, SmtpSecurityMode.None), Email(), CancellationToken.None);
+
+        Assert.Equal(EmailTransportOutcome.ConnectionFailed, result.Outcome);
+        Assert.Empty(server.Messages);
+    }
+
+    [Fact]
+    public async Task TestConnection_NeverReportsUncertain()
+    {
+        using var server = new FakeSmtpServer { HangBeforeGreeting = true };
+
+        var result = await Trusting.TestConnectionAsync(Settings(server, SmtpSecurityMode.None, timeout: 1), CancellationToken.None);
+
+        Assert.Equal(EmailTransportOutcome.Timeout, result.Outcome);
+    }
+
+    // Deterministic Message-ID
+
+    [Fact]
+    public async Task Send_WithAMessageIdPart_PutsItOnTheWireOnTheSendersDomain()
+    {
+        using var server = new FakeSmtpServer();
+        var email = Email() with { MessageIdLocalPart = "emaildigest-0123456789abcdef0123456789abcdef" };
+
+        await Trusting.SendAsync(Settings(server, SmtpSecurityMode.None), email, CancellationToken.None);
+        await Trusting.SendAsync(Settings(server, SmtpSecurityMode.None), email, CancellationToken.None);
+
+        var ids = server.Messages.Select(m => Parse(m.Raw).MessageId).ToList();
+        Assert.Equal(2, ids.Count);
+        Assert.All(ids, id => Assert.Equal("emaildigest-0123456789abcdef0123456789abcdef@example.com", id));
+    }
+
+    [Theory]
+    [InlineData("short")]
+    [InlineData("has space in it")]
+    [InlineData("bad<chars>here")]
+    [InlineData("line\nbreak-0123456789")]
+    public async Task Send_InvalidMessageIdPart_IsRejectedBeforeConnecting(string part)
+    {
+        using var server = new FakeSmtpServer();
+
+        var result = await Trusting.SendAsync(Settings(server, SmtpSecurityMode.None), Email() with { MessageIdLocalPart = part }, CancellationToken.None);
+
+        Assert.Equal(EmailTransportOutcome.InvalidRequest, result.Outcome);
+        Assert.Empty(server.Commands);
+    }
+
     // Request validation
 
     [Theory]

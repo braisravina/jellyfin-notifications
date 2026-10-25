@@ -56,6 +56,14 @@ internal sealed class FakeSmtpServer : IDisposable
 
     public bool HangBeforeGreeting { get; init; }
 
+    public bool DropAfterData { get; init; }
+
+    public bool HangAfterData { get; init; }
+
+    public bool DropAtRecipient { get; init; }
+
+    public bool DropAtGreeting { get; init; }
+
     public ConcurrentQueue<ReceivedMessage> Messages { get; } = new();
 
     public ConcurrentQueue<string> Commands { get; } = new();
@@ -130,6 +138,11 @@ internal sealed class FakeSmtpServer : IDisposable
         var authenticated = false;
         string? from = null;
         var recipients = new List<string>();
+
+        if (DropAtGreeting)
+        {
+            return;
+        }
 
         await writer.WriteLineAsync("220 fake.local ESMTP");
 
@@ -209,6 +222,11 @@ internal sealed class FakeSmtpServer : IDisposable
             }
             else if (upper.StartsWith("RCPT TO", StringComparison.Ordinal))
             {
+                if (DropAtRecipient)
+                {
+                    return;
+                }
+
                 if (RejectRecipients)
                 {
                     await writer.WriteLineAsync("550 5.1.1 User unknown");
@@ -240,6 +258,17 @@ internal sealed class FakeSmtpServer : IDisposable
                 }
 
                 Messages.Enqueue(new ReceivedMessage(from ?? string.Empty, recipients.ToArray(), Encoding.Latin1.GetBytes(data.ToString()), encrypted));
+                if (DropAfterData)
+                {
+                    // The message was received, but the reply never reaches the client.
+                    return;
+                }
+
+                if (HangAfterData)
+                {
+                    await Task.Delay(Timeout.Infinite, _stop.Token);
+                }
+
                 await writer.WriteLineAsync("250 2.0.0 Queued");
             }
             else if (upper == "QUIT")

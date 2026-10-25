@@ -23,6 +23,7 @@ public static class AdminStringKeys
         "AdminOutcomeTimeout",
         "AdminOutcomeCancelled",
         "AdminOutcomeUnexpectedError",
+        "AdminOutcomeUncertain",
         "TestEmailSubject",
         "TestEmailBody",
         "AdminTitle",

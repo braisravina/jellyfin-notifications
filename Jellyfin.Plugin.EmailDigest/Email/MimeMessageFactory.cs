@@ -41,7 +41,18 @@ public static class MimeMessageFactory
         message.To.Add(recipient);
         message.Subject = email.Subject;
         message.Date = DateTimeOffset.UtcNow;
-        message.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId(sender.Domain);
+        if (email.MessageIdLocalPart is null)
+        {
+            message.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId(sender.Domain);
+        }
+        else if (IsValidMessageIdPart(email.MessageIdLocalPart) && !string.IsNullOrEmpty(sender.Domain))
+        {
+            message.MessageId = email.MessageIdLocalPart + "@" + sender.Domain;
+        }
+        else
+        {
+            throw new ArgumentException("The message id is invalid.", nameof(email));
+        }
 
         // Tells well-behaved auto-responders (out-of-office, vacation) not to answer a robot.
         message.Headers.Add("Auto-Submitted", "auto-generated");
@@ -72,6 +83,11 @@ public static class MimeMessageFactory
         }
 
         return new MailboxAddress(string.IsNullOrWhiteSpace(name) ? null : name, parsed.Address);
+    }
+
+    private static bool IsValidMessageIdPart(string value)
+    {
+        return value.Length is >= 8 and <= 128 && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_');
     }
 
     private static bool HasLineBreak(string value)
