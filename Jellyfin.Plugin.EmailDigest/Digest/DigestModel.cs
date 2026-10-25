@@ -11,7 +11,8 @@ namespace Jellyfin.Plugin.EmailDigest.Digest;
 /// Every eligible item, de-duplicated and ordered, whether or not a display limit hid it. Delivery
 /// accounting must use this list, never the displayed entries.
 /// </param>
-public sealed record DigestModel(IReadOnlyList<DigestSection> Sections, IReadOnlyList<DiscoveredMediaItem> Items)
+/// <param name="EpisodeListLimit">The most episodes a renderer lists under one series line.</param>
+public sealed record DigestModel(IReadOnlyList<DigestSection> Sections, IReadOnlyList<DiscoveredMediaItem> Items, int EpisodeListLimit = 10)
 {
     /// <summary>
     /// Gets a value indicating whether there is nothing new to report.

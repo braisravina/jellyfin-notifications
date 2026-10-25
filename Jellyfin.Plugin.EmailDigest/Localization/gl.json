@@ -87,5 +87,12 @@
   "AdminThrottled": "Agarda uns segundos antes de enviar outro correo de proba.",
   "AdminWorking": "Traballando...",
   "AdminUnexpected": "Algo foi mal. Consulta o rexistro de Jellyfin.",
-  "AdminPasswordReenter": "A configuración do servidor SMTP cambiou, así que se eliminou o contrasinal gardado. Volve introducir o contrasinal."
+  "AdminPasswordReenter": "A configuración do servidor SMTP cambiou, así que se eliminou o contrasinal gardado. Volve introducir o contrasinal.",
+  "AdminDryRun": "Simulacro (non enviar)",
+  "AdminDryRunDesc": "Mentres estea activado, unha execución prepara e revisa o resumo de cada usuario e rexistra contas, pero non envía nada nin rexistra nada. Desactívao só cando esteas preparado para enviar correos reais.",
+  "AdminMaxPerSection": "Máximo de elementos por categoría",
+  "AdminMaxPerSectionDesc": "O que exceda este límite non se perde: aparece no seguinte resumo do usuario.",
+  "AdminMaxPerDigest": "Máximo de elementos por resumo",
+  "AdminMaxEpisodes": "Máximo de episodios listados por serie",
+  "AdminMaxEpisodesDesc": "A liña da serie segue indicando cantos episodios novos hai."
 }

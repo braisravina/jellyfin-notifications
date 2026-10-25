@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Jellyfin.Plugin.EmailDigest.Configuration;
 using Jellyfin.Plugin.EmailDigest.Services;
 using MediaBrowser.Common.Configuration;
@@ -81,6 +82,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             throw new PluginConfigurationValidationException(errors);
         }
 
+        var libraryErrors = ValidateLibrariesIfNeeded(typedConfiguration);
+        if (libraryErrors.Count > 0)
+        {
+            _logger.LogWarning("Rejected Email Digest configuration update: monitored libraries are not valid.");
+            throw new PluginConfigurationValidationException(libraryErrors);
+        }
+
         // A stored password must not outlive the server it was entered for. This runs before the
         // new configuration is saved, so a failure here leaves the old (matching) pair intact.
         if (ConfigurationChangePolicy.MustClearStoredPassword(Configuration, typedConfiguration))
@@ -94,5 +102,38 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         }
 
         base.UpdateConfiguration(configuration);
+    }
+
+    private static bool SameLibraries(PluginConfiguration a, PluginConfiguration b)
+    {
+        return a.MonitoredLibraries.Count == b.MonitoredLibraries.Count
+               && a.MonitoredLibraries.Zip(b.MonitoredLibraries).All(pair => pair.First.LibraryId == pair.Second.LibraryId && pair.First.Category == pair.Second.Category);
+    }
+
+    // Libraries are checked against Jellyfin when they change and whenever the digest is enabled, but
+    // not on unrelated saves, so a library deleted in Jellyfin cannot block, say, fixing the SMTP host.
+    // If Jellyfin cannot be asked, the change is refused rather than accepted unverified.
+    private List<string> ValidateLibrariesIfNeeded(PluginConfiguration proposed)
+    {
+        var errors = new List<string>();
+        var needed = proposed.MonitoredLibraries.Count > 0
+                     && (proposed.DigestEnabled || !SameLibraries(Configuration, proposed));
+        var validator = needed ? _services?.GetService<IMonitoredLibraryValidator>() : null;
+        if (validator is null)
+        {
+            return errors;
+        }
+
+        try
+        {
+            errors.AddRange(MonitoredLibraryIssueText.Describe(validator.Validate(proposed.MonitoredLibraries.ToList())));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError("Monitored libraries could not be verified ({ExceptionType}).", ex.GetType().Name);
+            errors.Add("The monitored libraries could not be verified against Jellyfin, so nothing was saved. Try again.");
+        }
+
+        return errors;
     }
 }

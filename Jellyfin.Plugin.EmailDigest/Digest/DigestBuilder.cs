@@ -77,7 +77,7 @@ public sealed class DigestBuilder : IDigestBuilder
             throw new InvalidOperationException("Some discovered items have a category that has no digest section.");
         }
 
-        return new DigestModel(sections, unique);
+        return new DigestModel(sections, unique, options.MaxEpisodesPerSeries);
     }
 
     private static List<DigestEntry> BuildEntries(IReadOnlyList<DiscoveredMediaItem> categoryItems)

@@ -87,5 +87,12 @@
   "AdminThrottled": "Please wait a few seconds before sending another test email.",
   "AdminWorking": "Working...",
   "AdminUnexpected": "Something went wrong. Check the Jellyfin log.",
-  "AdminPasswordReenter": "The SMTP server settings changed, so the stored password was removed. Enter the password again."
+  "AdminPasswordReenter": "The SMTP server settings changed, so the stored password was removed. Enter the password again.",
+  "AdminDryRun": "Dry run (do not send)",
+  "AdminDryRunDesc": "While on, a digest run builds and checks each user's digest and logs counts, but sends nothing and records nothing. Turn it off only when you are ready for real emails.",
+  "AdminMaxPerSection": "Most items per category",
+  "AdminMaxPerSectionDesc": "Items beyond this are not lost: they appear in the user's next digest.",
+  "AdminMaxPerDigest": "Most items per digest",
+  "AdminMaxEpisodes": "Most episodes listed per series",
+  "AdminMaxEpisodesDesc": "The series line still shows how many new episodes there are."
 }

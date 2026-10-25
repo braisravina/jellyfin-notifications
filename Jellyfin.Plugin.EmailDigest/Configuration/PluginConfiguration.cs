@@ -34,6 +34,10 @@ public class PluginConfiguration : BasePluginConfiguration
         DigestEnabled = false;
         DefaultLanguage = SupportedLanguages.Default;
         FallbackLookbackHours = 168; // 7 days
+        DigestDryRun = true;
+        MaxEntriesPerSection = 25;
+        MaxEntriesPerDigest = 100;
+        MaxEpisodesPerSeries = 10;
     }
 
     /// <summary>
@@ -91,6 +95,30 @@ public class PluginConfiguration : BasePluginConfiguration
     /// digest run, before any checkpoint exists.
     /// </summary>
     public int FallbackLookbackHours { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a digest run only builds and renders digests,
+    /// logging counts, without sending anything or recording any delivery. On by default, so
+    /// enabling the digest never starts real sending by itself.
+    /// </summary>
+    public bool DigestDryRun { get; set; }
+
+    /// <summary>
+    /// Gets or sets the most entries (a movie, an album or a whole series) shown per category.
+    /// Entries beyond the limit are not lost: they stay pending for the next digest.
+    /// </summary>
+    public int MaxEntriesPerSection { get; set; }
+
+    /// <summary>
+    /// Gets or sets the most entries shown in one digest across all categories.
+    /// </summary>
+    public int MaxEntriesPerDigest { get; set; }
+
+    /// <summary>
+    /// Gets or sets the most episodes listed under one series; the series line still states the
+    /// full count.
+    /// </summary>
+    public int MaxEpisodesPerSeries { get; set; }
 
     /// <summary>
     /// Gets the Jellyfin libraries monitored for new media, and which digest section each is

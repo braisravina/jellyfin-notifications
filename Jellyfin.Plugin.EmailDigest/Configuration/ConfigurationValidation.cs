@@ -20,6 +20,12 @@ public static partial class ConfigurationValidation
     public const int MaxTimeoutSeconds = 120;
 
     /// <summary>
+    /// The largest accepted fallback lookback, in hours (30 days), equal to the longest span any
+    /// single digest reaches back.
+    /// </summary>
+    public const int MaxLookbackHours = 720;
+
+    /// <summary>
     /// Checks whether a string is a plausible email address.
     /// </summary>
     /// <remarks>

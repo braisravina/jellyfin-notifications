@@ -25,11 +25,33 @@ public sealed class DigestOptions
     public int MaxEntriesPerDigest { get; init; } = 100;
 
     /// <summary>
+    /// Gets the most episodes listed under one series. The series line still shows the full count.
+    /// </summary>
+    public int MaxEpisodesPerSeries { get; init; } = 10;
+
+    /// <summary>
+    /// Builds options from the saved configuration.
+    /// </summary>
+    /// <param name="configuration">The configuration.</param>
+    /// <returns>The options.</returns>
+    public static DigestOptions From(Configuration.PluginConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        return new DigestOptions
+        {
+            MaxEntriesPerSection = configuration.MaxEntriesPerSection,
+            MaxEntriesPerDigest = configuration.MaxEntriesPerDigest,
+            MaxEpisodesPerSeries = configuration.MaxEpisodesPerSeries
+        };
+    }
+
+    /// <summary>
     /// Throws when a limit is not positive.
     /// </summary>
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxEntriesPerSection, 1, nameof(MaxEntriesPerSection));
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxEntriesPerDigest, 1, nameof(MaxEntriesPerDigest));
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaxEpisodesPerSeries, 1, nameof(MaxEpisodesPerSeries));
     }
 }

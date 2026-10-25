@@ -24,7 +24,11 @@ public sealed class PluginConfigurationAccessor : ISmtpConfigurationAccessor
             SenderDisplayName = current.SenderDisplayName,
             DigestEnabled = current.DigestEnabled,
             DefaultLanguage = current.DefaultLanguage,
-            FallbackLookbackHours = current.FallbackLookbackHours
+            FallbackLookbackHours = current.FallbackLookbackHours,
+            DigestDryRun = current.DigestDryRun,
+            MaxEntriesPerSection = current.MaxEntriesPerSection,
+            MaxEntriesPerDigest = current.MaxEntriesPerDigest,
+            MaxEpisodesPerSeries = current.MaxEpisodesPerSeries
         };
 
         foreach (var library in current.MonitoredLibraries)

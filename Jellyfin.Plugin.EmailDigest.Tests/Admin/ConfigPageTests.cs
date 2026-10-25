@@ -189,6 +189,6 @@ public sealed class ConfigPageTests
     {
         Assert.Contains("aria-live=\"polite\"", Html, StringComparison.Ordinal);
         Assert.Contains("role=\"alert\"", Html, StringComparison.Ordinal);
-        Assert.All(Matches("<input id=\"([A-Za-z]+)\"").Where(id => id != "DigestEnabled" && id != "SmtpEnabled"), id => Assert.Contains($"for=\"{id}\"", Html, StringComparison.Ordinal));
+        Assert.All(Matches("<input id=\"([A-Za-z]+)\"").Where(id => id != "DigestEnabled" && id != "SmtpEnabled" && id != "DigestDryRun"), id => Assert.Contains($"for=\"{id}\"", Html, StringComparison.Ordinal));
     }
 }

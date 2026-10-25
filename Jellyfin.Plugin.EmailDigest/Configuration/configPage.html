@@ -34,8 +34,29 @@
                     </div>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="FallbackLookbackHours" data-i18n="AdminLookback"></label>
-                        <input id="FallbackLookbackHours" type="number" is="emby-input" min="0" />
+                        <input id="FallbackLookbackHours" type="number" is="emby-input" min="0" max="720" />
                         <div class="fieldDescription" data-i18n="AdminLookbackDesc"></div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="DigestDryRun" type="checkbox" is="emby-checkbox" />
+                            <span data-i18n="AdminDryRun"></span>
+                        </label>
+                        <div class="fieldDescription" data-i18n="AdminDryRunDesc"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MaxEntriesPerSection" data-i18n="AdminMaxPerSection"></label>
+                        <input id="MaxEntriesPerSection" type="number" is="emby-input" min="1" max="200" />
+                        <div class="fieldDescription" data-i18n="AdminMaxPerSectionDesc"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MaxEntriesPerDigest" data-i18n="AdminMaxPerDigest"></label>
+                        <input id="MaxEntriesPerDigest" type="number" is="emby-input" min="1" max="500" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MaxEpisodesPerSeries" data-i18n="AdminMaxEpisodes"></label>
+                        <input id="MaxEpisodesPerSeries" type="number" is="emby-input" min="1" max="50" />
+                        <div class="fieldDescription" data-i18n="AdminMaxEpisodesDesc"></div>
                     </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
@@ -270,6 +291,10 @@
                         $('#DigestEnabled').checked = config.DigestEnabled;
                         $('#DefaultLanguage').value = config.DefaultLanguage;
                         $('#FallbackLookbackHours').value = config.FallbackLookbackHours;
+                        $('#DigestDryRun').checked = config.DigestDryRun;
+                        $('#MaxEntriesPerSection').value = config.MaxEntriesPerSection;
+                        $('#MaxEntriesPerDigest').value = config.MaxEntriesPerDigest;
+                        $('#MaxEpisodesPerSeries').value = config.MaxEpisodesPerSeries;
                         fillSmtp(results[1]);
                         Dashboard.hideLoadingMsg();
                     }).catch(function () {
@@ -296,6 +321,10 @@
                         config.DigestEnabled = $('#DigestEnabled').checked;
                         config.DefaultLanguage = $('#DefaultLanguage').value;
                         config.FallbackLookbackHours = parseInt($('#FallbackLookbackHours').value, 10) || 0;
+                        config.DigestDryRun = $('#DigestDryRun').checked;
+                        config.MaxEntriesPerSection = parseInt($('#MaxEntriesPerSection').value, 10) || 0;
+                        config.MaxEntriesPerDigest = parseInt($('#MaxEntriesPerDigest').value, 10) || 0;
+                        config.MaxEpisodesPerSeries = parseInt($('#MaxEpisodesPerSeries').value, 10) || 0;
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     }).then(function () {
                         say('#DigestMessage', t('AdminSaved'));

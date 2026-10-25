@@ -16,7 +16,8 @@ namespace Jellyfin.Plugin.EmailDigest.Digest;
 public sealed class DigestRenderer : IDigestRenderer
 {
     /// <summary>
-    /// The most episodes listed under one series.
+    /// The default for the most episodes listed under one series; the digest model carries the
+    /// configured value.
     /// </summary>
     public const int MaxEpisodesListed = 10;
 
@@ -72,20 +73,20 @@ public sealed class DigestRenderer : IDigestRenderer
             text.Plural("SubjectNew", model.Items.Count),
             greeting,
             text.Format("Intro"),
-            model.Sections.Select(section => BuildSection(section, text)).ToList(),
+            model.Sections.Select(section => BuildSection(section, text, model.EpisodeListLimit)).ToList(),
             null,
             text.Format("Footer"));
     }
 
-    private static DigestViewSection BuildSection(DigestSection section, DigestText text)
+    private static DigestViewSection BuildSection(DigestSection section, DigestText text, int episodeLimit)
     {
         return new DigestViewSection(
             text.Heading(section.Category),
-            section.Entries.Select(entry => BuildEntry(entry, text)).ToList(),
+            section.Entries.Select(entry => BuildEntry(entry, text, episodeLimit)).ToList(),
             section.HiddenEntryCount > 0 ? text.Plural("Overflow", section.HiddenEntryCount) : null);
     }
 
-    private static DigestViewEntry BuildEntry(DigestEntry entry, DigestText text)
+    private static DigestViewEntry BuildEntry(DigestEntry entry, DigestText text, int episodeLimit)
     {
         var title = DigestSanitizer.Clean(entry.Title);
 
@@ -109,7 +110,7 @@ public sealed class DigestRenderer : IDigestRenderer
                     null);
 
             case DigestEntryKind.Series:
-                var listed = entry.Episodes.Take(MaxEpisodesListed).Select(episode => EpisodeLine(episode, text)).ToList();
+                var listed = entry.Episodes.Take(Math.Max(1, episodeLimit)).Select(episode => EpisodeLine(episode, text)).ToList();
                 var hidden = entry.Episodes.Count - listed.Count;
                 return new DigestViewEntry(
                     title.Length > 0 ? title : text.Format("UnknownSeries"),

@@ -78,9 +78,24 @@ public static class PluginConfigurationValidator
             errors.Add($"DefaultLanguage '{configuration.DefaultLanguage}' is not a supported language code.");
         }
 
-        if (configuration.FallbackLookbackHours < 0)
+        if (configuration.FallbackLookbackHours is < 0 or > ConfigurationValidation.MaxLookbackHours)
         {
-            errors.Add("FallbackLookbackHours cannot be negative.");
+            errors.Add($"FallbackLookbackHours must be between 0 and {ConfigurationValidation.MaxLookbackHours}.");
+        }
+
+        if (configuration.MaxEntriesPerSection is < 1 or > 200)
+        {
+            errors.Add("MaxEntriesPerSection must be between 1 and 200.");
+        }
+
+        if (configuration.MaxEntriesPerDigest is < 1 or > 500)
+        {
+            errors.Add("MaxEntriesPerDigest must be between 1 and 500.");
+        }
+
+        if (configuration.MaxEpisodesPerSeries is < 1 or > 50)
+        {
+            errors.Add("MaxEpisodesPerSeries must be between 1 and 50.");
         }
 
         for (var i = 0; i < configuration.MonitoredLibraries.Count; i++)
