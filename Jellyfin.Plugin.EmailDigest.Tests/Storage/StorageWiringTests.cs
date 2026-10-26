@@ -69,4 +69,33 @@ public sealed class StorageWiringTests : IDisposable
         Assert.True(File.Exists(Path.Combine(storage.Root, "user-preferences.json")));
         Assert.False(File.Exists(Path.Combine(plugin.DataFolderPath, "user-preferences.json")));
     }
+
+    [Fact]
+    public void SubscriptionService_AndItsParts_ResolveFromTheRealRegistration()
+    {
+        var data = Path.Combine(_work, "data2");
+        Directory.CreateDirectory(data);
+        var paths = new Mock<IApplicationPaths>();
+        paths.Setup(p => p.DataPath).Returns(data);
+        paths.Setup(p => p.PluginsPath).Returns(Path.Combine(_work, "plugins2"));
+        paths.Setup(p => p.PluginConfigurationsPath).Returns(Path.Combine(_work, "configs2"));
+        var serializer = new Mock<IXmlSerializer>();
+        serializer.Setup(x => x.DeserializeFromFile(typeof(PluginConfiguration), It.IsAny<string>())).Returns(() => new PluginConfiguration());
+        _ = new Plugin(paths.Object, serializer.Object, NullLogger<Plugin>.Instance);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(paths.Object);
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
+        services.AddSingleton(new Mock<MediaBrowser.Controller.Library.IUserManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Model.Tasks.ITaskManager>().Object);
+        new ServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
+        using var provider = services.BuildServiceProvider();
+
+        Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.EmailDigest.Subscription.ISubscriptionService>());
+        Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.EmailDigest.Subscription.IUnsubscribeTokens>());
+        Assert.NotNull(provider.GetRequiredService<Jellyfin.Plugin.EmailDigest.Verification.IAddressVerificationService>());
+        Assert.NotNull(provider.GetRequiredService<IDeliveryStatusStore>());
+        Assert.NotNull(provider.GetRequiredService<IScheduleInfo>());
+    }
 }

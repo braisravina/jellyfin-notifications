@@ -5,9 +5,12 @@ using Jellyfin.Plugin.EmailDigest.Digest;
 using Jellyfin.Plugin.EmailDigest.Email;
 using Jellyfin.Plugin.EmailDigest.Services;
 using Jellyfin.Plugin.EmailDigest.Storage;
+using Jellyfin.Plugin.EmailDigest.Subscription;
+using Jellyfin.Plugin.EmailDigest.Verification;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Jellyfin.Plugin.EmailDigest;
@@ -71,6 +74,28 @@ public class ServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ILocalizationService>(),
             TimeProvider.System,
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SmtpAdminService>>()));
+        serviceCollection.AddSingleton<IAddressVerificationService>(provider => new AddressVerificationService(
+            StorageRoot(provider),
+            () => VerificationPolicy.ForLifetime(provider.GetRequiredService<ISmtpConfigurationAccessor>().GetCopy().VerificationLinkMinutes),
+            TimeProvider.System,
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("Jellyfin.Plugin.EmailDigest.Verification")));
+        serviceCollection.AddSingleton<IDeliveryStatusStore>(provider => new DeliveryStatusStore(StorageRoot(provider)));
+        serviceCollection.AddSingleton<IScheduleInfo>(provider => new JellyfinScheduleInfo(provider.GetRequiredService<ITaskManager>(), TimeProvider.System));
+        serviceCollection.AddSingleton<IUnsubscribeTokens>(provider => new UnsubscribeTokenService(StorageRoot(provider)));
+        serviceCollection.AddSingleton<VerificationMessageBuilder>();
+        serviceCollection.AddSingleton<ISubscriptionService>(provider => new SubscriptionService(
+            provider.GetRequiredService<IUserPreferenceRepository>(),
+            provider.GetRequiredService<IAddressVerificationService>(),
+            provider.GetRequiredService<IDeliveryStatusStore>(),
+            provider.GetRequiredService<IScheduleInfo>(),
+            provider.GetRequiredService<ISmtpConfigurationAccessor>(),
+            provider.GetRequiredService<ISmtpPasswordStore>(),
+            provider.GetRequiredService<IEmailTransport>(),
+            provider.GetRequiredService<VerificationMessageBuilder>(),
+            provider.GetRequiredService<IUnsubscribeTokens>(),
+            provider.GetRequiredService<IUserDirectory>(),
+            TimeProvider.System,
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionService>>()));
         serviceCollection.AddSingleton<ILibraryAccessResolver, JellyfinLibraryAccessResolver>();
         serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
     }

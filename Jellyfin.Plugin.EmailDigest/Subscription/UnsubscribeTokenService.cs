@@ -30,7 +30,11 @@ public sealed class UnsubscribeTokenService : IUnsubscribeTokens
     private const string Purpose = "unsubscribe-v1";
 
     private readonly string _path;
-    private readonly object _gate = new();
+    // One gate per key file, shared by every instance in the process, so two instances created at the
+    // same moment cannot each generate a different key.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> Gates = new(StringComparer.Ordinal);
+
+    private readonly object _gate;
     private byte[]? _key;
 
     /// <summary>
@@ -41,6 +45,7 @@ public sealed class UnsubscribeTokenService : IUnsubscribeTokens
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
         _path = Path.Combine(folder, FileName);
+        _gate = Gates.GetOrAdd(Path.GetFullPath(_path), _ => new object());
     }
 
     /// <inheritdoc />
@@ -128,7 +133,7 @@ public sealed class UnsubscribeTokenService : IUnsubscribeTokens
                 if (!File.Exists(_path))
                 {
                     var fresh = RandomNumberGenerator.GetBytes(KeyBytes);
-                    var temp = _path + ".tmp";
+                    var temp = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                     using (var stream = PrivateFile.CreateOrReplace(temp))
                     {
                         stream.Write(fresh);
