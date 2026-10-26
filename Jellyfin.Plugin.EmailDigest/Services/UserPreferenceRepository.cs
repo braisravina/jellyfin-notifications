@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.EmailDigest.Configuration;
@@ -12,14 +13,26 @@ namespace Jellyfin.Plugin.EmailDigest.Services;
 
 /// <inheritdoc />
 /// <remarks>
-/// Backed by a single JSON file (a plain array, not an object keyed by user id, so it stays easy
-/// to hand-inspect) under the plugin's data folder. Reads and writes are serialized through an
-/// in-process lock — sufficient because Jellyfin plugins run in a single server process — and
-/// writes are atomic via <see cref="AtomicJsonFile"/>.
+/// <para>
+/// Backed by <c>user-preferences.json</c>, format 2: an object with a <c>Format</c> number and a
+/// <c>Users</c> array. Format 1 (what earlier versions and hand-seeded files use) was a bare array of
+/// records; it is read as is, with every address unverified, and converted on the first write after the
+/// original is kept once as <c>user-preferences.json.v1.bak</c>.
+/// </para>
+/// <para>
+/// A damaged file, a newer format or an invalid record (empty id, repeated id) raises
+/// <see cref="UserPreferencesException"/> and is never overwritten, so a bad edit cannot silently
+/// become "everyone unsubscribed" or "everyone forgotten". Every read-modify-write runs under one
+/// in-process lock — sufficient because a Jellyfin plugin runs in a single server process — and the
+/// write is atomic via <see cref="AtomicJsonFile"/>.
+/// </para>
 /// </remarks>
 public sealed class UserPreferenceRepository : IUserPreferenceRepository, IDisposable
 {
     private const string FileName = "user-preferences.json";
+    private const int CurrentFormat = 2;
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string _filePath;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -27,7 +40,7 @@ public sealed class UserPreferenceRepository : IUserPreferenceRepository, IDispo
     /// <summary>
     /// Initializes a new instance of the <see cref="UserPreferenceRepository"/> class.
     /// </summary>
-    /// <param name="dataFolderPath">The plugin's data folder path.</param>
+    /// <param name="dataFolderPath">The folder holding plugin state.</param>
     public UserPreferenceRepository(string dataFolderPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataFolderPath);
@@ -37,14 +50,14 @@ public sealed class UserPreferenceRepository : IUserPreferenceRepository, IDispo
     /// <inheritdoc />
     public async Task<UserNotificationPreferences?> GetAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var all = await ReadAllAsync(cancellationToken).ConfigureAwait(false);
-        return all.FirstOrDefault(p => p.UserId == userId);
+        var all = await ReadLockedAsync(cancellationToken).ConfigureAwait(false);
+        return all.Users.FirstOrDefault(p => p.UserId == userId);
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<UserNotificationPreferences>> GetAllAsync(CancellationToken cancellationToken)
     {
-        return await ReadAllAsync(cancellationToken).ConfigureAwait(false);
+        return (await ReadLockedAsync(cancellationToken).ConfigureAwait(false)).Users;
     }
 
     /// <inheritdoc />
@@ -54,38 +67,50 @@ public sealed class UserPreferenceRepository : IUserPreferenceRepository, IDispo
 
         if (!ConfigurationValidation.IsValidEmail(preferences.Email))
         {
-            throw new ArgumentException($"'{preferences.Email}' is not a valid email address.", nameof(preferences));
+            throw new ArgumentException("The email address is not valid.", nameof(preferences));
         }
 
-        if (!SupportedLanguages.IsSupported(preferences.Language))
-        {
-            throw new ArgumentException($"'{preferences.Language}' is not a supported language code.", nameof(preferences));
-        }
-
-        await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            var all = await AtomicJsonFile.ReadAsync<List<UserNotificationPreferences>>(_filePath, cancellationToken).ConfigureAwait(false)
-                      ?? new List<UserNotificationPreferences>();
-
-            all.RemoveAll(p => p.UserId == preferences.UserId);
-            all.Add(preferences);
-
-            await AtomicJsonFile.WriteAsync(_filePath, all, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        await UpdateAsync(preferences.UserId, _ => Copy(preferences), cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<List<UserNotificationPreferences>> ReadAllAsync(CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public async Task<UserNotificationPreferences?> UpdateAsync(
+        Guid userId,
+        Func<UserNotificationPreferences?, UserNotificationPreferences?> change,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(change);
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException("A user id is required.", nameof(userId));
+        }
+
         await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await AtomicJsonFile.ReadAsync<List<UserNotificationPreferences>>(_filePath, cancellationToken).ConfigureAwait(false)
-                   ?? new List<UserNotificationPreferences>();
+            var loaded = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = loaded.Users.FirstOrDefault(p => p.UserId == userId);
+            var result = change(current is null ? null : Copy(current));
+
+            if (result is not null)
+            {
+                Validate(userId, result);
+            }
+
+            var users = loaded.Users.Where(p => p.UserId != userId).ToList();
+            if (result is not null)
+            {
+                users.Add(result);
+            }
+
+            if (loaded.WasLegacy)
+            {
+                KeepOriginalOnce();
+            }
+
+            KeepBackup();
+            await AtomicJsonFile.WriteAsync(_filePath, new PreferencesFile { Format = CurrentFormat, Users = users }, cancellationToken).ConfigureAwait(false);
+            return result;
         }
         finally
         {
@@ -97,5 +122,145 @@ public sealed class UserPreferenceRepository : IUserPreferenceRepository, IDispo
     public void Dispose()
     {
         _lock.Dispose();
+    }
+
+    private static UserNotificationPreferences Copy(UserNotificationPreferences source)
+    {
+        return new UserNotificationPreferences
+        {
+            UserId = source.UserId,
+            Email = source.Email,
+            EmailVerifiedUtc = source.EmailVerifiedUtc,
+            Language = source.Language,
+            NotificationsEnabled = source.NotificationsEnabled
+        };
+    }
+
+    private static void Validate(Guid userId, UserNotificationPreferences result)
+    {
+        if (result.UserId != userId)
+        {
+            throw new ArgumentException("A change may only affect the user it was made for.", nameof(result));
+        }
+
+        var email = result.Email ?? string.Empty;
+        if (email.Length > 0 && (!ConfigurationValidation.IsValidEmail(email) || !ConfigurationValidation.IsValidSingleLine(email, 254)))
+        {
+            throw new ArgumentException("The email address is not valid.", nameof(result));
+        }
+
+        if (!SupportedLanguages.IsSupported(result.Language))
+        {
+            throw new ArgumentException("The language is not supported.", nameof(result));
+        }
+
+        if (email.Length == 0 && result.EmailVerifiedUtc is not null)
+        {
+            throw new ArgumentException("There is no address to have verified.", nameof(result));
+        }
+    }
+
+    private async Task<Loaded> ReadLockedAsync(CancellationToken cancellationToken)
+    {
+        await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await ReadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<Loaded> ReadAsync(CancellationToken cancellationToken)
+    {
+        if (!File.Exists(_filePath))
+        {
+            return new Loaded(new List<UserNotificationPreferences>(), false);
+        }
+
+        try
+        {
+            byte[] bytes;
+            using (var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var buffer = new MemoryStream())
+            {
+                await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+                bytes = buffer.ToArray();
+            }
+
+            using var document = JsonDocument.Parse(bytes);
+            List<UserNotificationPreferences>? users;
+            bool legacy;
+            switch (document.RootElement.ValueKind)
+            {
+                case JsonValueKind.Array:
+                    users = document.RootElement.Deserialize<List<UserNotificationPreferences>>(JsonOptions);
+                    legacy = true;
+                    break;
+                case JsonValueKind.Object:
+                    var file = document.RootElement.Deserialize<PreferencesFile>(JsonOptions);
+                    if (file is null || file.Format != CurrentFormat)
+                    {
+                        throw new UserPreferencesException("The preferences file has an unsupported format and was left untouched.");
+                    }
+
+                    users = file.Users;
+                    legacy = false;
+                    break;
+                default:
+                    throw new UserPreferencesException("The preferences file is damaged and was left untouched.");
+            }
+
+            if (users is null || users.Any(u => u is null || u.UserId == Guid.Empty) || users.GroupBy(u => u.UserId).Any(g => g.Count() > 1))
+            {
+                throw new UserPreferencesException("The preferences file contains an invalid record and was left untouched.");
+            }
+
+            return new Loaded(users, legacy);
+        }
+        catch (JsonException ex)
+        {
+            throw new UserPreferencesException("The preferences file is damaged and was left untouched.", ex);
+        }
+    }
+
+    // The original format-1 file is kept once, before the first conversion. If it cannot be kept the
+    // write is abandoned: converting without a recovery copy is not worth the risk.
+    private void KeepOriginalOnce()
+    {
+        var original = _filePath + ".v1.bak";
+        if (!File.Exists(original))
+        {
+            File.Copy(_filePath, original, overwrite: false);
+        }
+    }
+
+    private void KeepBackup()
+    {
+        try
+        {
+            if (File.Exists(_filePath))
+            {
+                File.Copy(_filePath, _filePath + ".bak", overwrite: true);
+            }
+        }
+        catch (IOException)
+        {
+            // A convenience copy; failing to make it must not block saving.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private sealed record Loaded(List<UserNotificationPreferences> Users, bool WasLegacy);
+
+    private sealed class PreferencesFile
+    {
+        public int Format { get; set; }
+
+        public List<UserNotificationPreferences>? Users { get; set; }
     }
 }

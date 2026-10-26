@@ -114,10 +114,13 @@ internal sealed class RunnerHarness : IDisposable
             Log);
     }
 
+    /// <summary>When the harness's users' addresses count as having been verified.</summary>
+    public static readonly DateTimeOffset Verified = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     public async Task<Guid> AddUserAsync(string name, string email, string language = "en", bool notifications = true, bool disabledAccount = false)
     {
         var id = Guid.NewGuid();
-        await Preferences.SaveAsync(new UserNotificationPreferences { UserId = id, Email = email, Language = language, NotificationsEnabled = notifications }, CancellationToken.None);
+        await Preferences.SaveAsync(new UserNotificationPreferences { EmailVerifiedUtc = Verified, UserId = id, Email = email, Language = language, NotificationsEnabled = notifications }, CancellationToken.None);
         Users.Add(id, new UserInfo(name, disabledAccount));
         return id;
     }

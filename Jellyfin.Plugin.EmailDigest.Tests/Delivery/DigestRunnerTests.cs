@@ -81,7 +81,7 @@ public sealed class DigestRunnerTests : IDisposable
         var es = await _h.AddUserAsync("Ana", "ana@example.com", "es");
         var en = await _h.AddUserAsync("Bob", "bob@example.com", "en");
         var pref = await _h.AddUserAsync("Cai", "cai@example.com", "en");
-        await _h.Preferences.SaveAsync(new UserNotificationPreferences { UserId = pref, Email = "cai@example.com", Language = "en", NotificationsEnabled = true }, CancellationToken.None);
+        await _h.Preferences.SaveAsync(new UserNotificationPreferences { EmailVerifiedUtc = RunnerHarness.Verified, UserId = pref, Email = "cai@example.com", Language = "en", NotificationsEnabled = true }, CancellationToken.None);
         foreach (var u in new[] { es, en, pref })
         {
             _h.Discovery.Give(u, RunnerHarness.Movie("Heat", Ago(2)));
@@ -148,7 +148,7 @@ public sealed class DigestRunnerTests : IDisposable
     {
         var disabled = await _h.AddUserAsync("Ana", "ana@example.com", disabledAccount: true);
         var gone = Guid.NewGuid();
-        await _h.Preferences.SaveAsync(new UserNotificationPreferences { UserId = gone, Email = "gone@example.com", NotificationsEnabled = true }, CancellationToken.None);
+        await _h.Preferences.SaveAsync(new UserNotificationPreferences { EmailVerifiedUtc = RunnerHarness.Verified, UserId = gone, Email = "gone@example.com", NotificationsEnabled = true }, CancellationToken.None);
         _h.Discovery.Give(disabled, RunnerHarness.Movie("Heat", Ago(2)));
 
         var summary = await _h.RunAsync();
@@ -174,6 +174,37 @@ public sealed class DigestRunnerTests : IDisposable
 
         Assert.Empty(_h.Transport.Sent);
         Assert.Equal(1, summary.UsersSkipped);
+    }
+
+    [Fact]
+    public async Task UnverifiedAddress_NeverReceivesADigest_AndKeepsItsState()
+    {
+        var user = Guid.NewGuid();
+        await _h.Preferences.SaveAsync(new UserNotificationPreferences { UserId = user, Email = "ana@example.com", Language = "en", NotificationsEnabled = true }, CancellationToken.None);
+        _h.Users.Add(user, new UserInfo("Ana", false));
+        _h.Discovery.Give(user, RunnerHarness.Movie("Heat", Ago(2)));
+
+        var summary = await _h.RunAsync();
+
+        Assert.Empty(_h.Transport.Sent);
+        Assert.Empty(_h.Discovery.Calls);
+        Assert.Empty(await _h.State.GetAllAsync(CancellationToken.None));
+        Assert.Equal(1, summary.UsersSkipped);
+        Assert.Equal(DigestRunOutcome.Completed, summary.Outcome);
+    }
+
+    [Fact]
+    public async Task DamagedPreferencesFile_AbortsTheRunAndIsLeftUntouched()
+    {
+        var path = Path.Combine(_h.Root, "user-preferences.json");
+        await File.WriteAllTextAsync(path, "{ this is not json");
+
+        var summary = await _h.RunAsync();
+
+        Assert.Equal(DigestRunOutcome.Aborted, summary.Outcome);
+        Assert.Equal("preferences-unreadable", summary.Reason);
+        Assert.Empty(_h.Transport.Sent);
+        Assert.Equal("{ this is not json", await File.ReadAllTextAsync(path));
     }
 
     // Nothing new
@@ -825,13 +856,13 @@ public sealed class DigestRunnerTests : IDisposable
         await _h.RunAsync();
         var checkpoint = (await _h.State.GetAsync(user, CancellationToken.None))!.CheckpointUtc;
 
-        await _h.Preferences.SaveAsync(new UserNotificationPreferences { UserId = user, Email = "ana@example.com", Language = "en", NotificationsEnabled = false }, CancellationToken.None);
+        await _h.Preferences.SaveAsync(new UserNotificationPreferences { EmailVerifiedUtc = RunnerHarness.Verified, UserId = user, Email = "ana@example.com", Language = "en", NotificationsEnabled = false }, CancellationToken.None);
         _h.Time.Advance(TimeSpan.FromDays(3));
         _h.Discovery.Give(user, RunnerHarness.Movie("While paused", Upper.AddDays(1)));
         await _h.RunAsync();
         Assert.Equal(checkpoint, (await _h.State.GetAsync(user, CancellationToken.None))!.CheckpointUtc);
 
-        await _h.Preferences.SaveAsync(new UserNotificationPreferences { UserId = user, Email = "ana@example.com", Language = "en", NotificationsEnabled = true }, CancellationToken.None);
+        await _h.Preferences.SaveAsync(new UserNotificationPreferences { EmailVerifiedUtc = RunnerHarness.Verified, UserId = user, Email = "ana@example.com", Language = "en", NotificationsEnabled = true }, CancellationToken.None);
         _h.Time.Advance(TimeSpan.FromDays(1));
         await _h.RunAsync();
 

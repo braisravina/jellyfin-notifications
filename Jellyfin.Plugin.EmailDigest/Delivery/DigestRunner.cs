@@ -242,8 +242,20 @@ public sealed class DigestRunner
             return await FinishAsync(summary, DigestRunOutcome.Aborted, "state-unreadable").ConfigureAwait(false);
         }
 
-        var preferences = (await _preferences.GetAllAsync(cancellationToken).ConfigureAwait(false)).OrderBy(p => p.UserId).ToList();
-        var eligible = preferences.Where(p => p.NotificationsEnabled).ToList();
+        List<UserNotificationPreferences> preferences;
+        try
+        {
+            preferences = (await _preferences.GetAllAsync(cancellationToken).ConfigureAwait(false)).OrderBy(p => p.UserId).ToList();
+        }
+        catch (UserPreferencesException)
+        {
+            _logger.LogError("The user preferences file cannot be trusted; nothing was sent. See the documentation to recover it.");
+            return await FinishAsync(summary, DigestRunOutcome.Aborted, "preferences-unreadable").ConfigureAwait(false);
+        }
+
+        // Only a user who wants digests AND has a verified address is eligible; a pending or
+        // unverified address is never used.
+        var eligible = preferences.Where(p => p.CanReceiveDigest()).ToList();
         summary.UsersSkipped += preferences.Count - eligible.Count;
 
         var stopReason = string.Empty;
