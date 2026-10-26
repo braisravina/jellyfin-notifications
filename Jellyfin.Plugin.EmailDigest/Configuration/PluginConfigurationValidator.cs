@@ -98,6 +98,16 @@ public static class PluginConfigurationValidator
             errors.Add("MaxEpisodesPerSeries must be between 1 and 50.");
         }
 
+        if (!string.IsNullOrEmpty(configuration.PublicBaseUrl) && PublicBaseUrl.TryNormalize(configuration.PublicBaseUrl) is null)
+        {
+            errors.Add("PublicBaseUrl must be an http or https address with a host and no user name, password, query or fragment.");
+        }
+
+        if (configuration.VerificationLinkMinutes is < Verification.VerificationPolicy.MinLifetimeMinutes or > Verification.VerificationPolicy.MaxLifetimeMinutes)
+        {
+            errors.Add($"VerificationLinkMinutes must be between {Verification.VerificationPolicy.MinLifetimeMinutes} and {Verification.VerificationPolicy.MaxLifetimeMinutes}.");
+        }
+
         for (var i = 0; i < configuration.MonitoredLibraries.Count; i++)
         {
             var library = configuration.MonitoredLibraries[i];

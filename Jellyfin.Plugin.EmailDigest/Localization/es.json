@@ -137,5 +137,12 @@
   "AdminReasonStateWriteFailed": "Se aceptó una entrega pero no se pudo registrar, así que la ejecución se detuvo. Es probable un duplicado la próxima vez.",
   "AdminReasonUserFailures": "No se pudo entregar a algunos usuarios. Revisa el registro.",
   "AdminReasonCancelled": "La ejecución fue cancelada.",
-  "AdminReasonUnexpectedError": "Un error inesperado detuvo la ejecución. Revisa el registro."
+  "AdminReasonUnexpectedError": "Un error inesperado detuvo la ejecución. Revisa el registro.",
+  "VerifySubject": "Confirma tu dirección de correo",
+  "VerifyIntro": "Alguien ha pedido usar esta dirección de correo para recibir notificaciones de {0}.",
+  "VerifyAction": "Para confirmar que esta dirección es tuya, abre este enlace:",
+  "VerifyButton": "Confirmar esta dirección",
+  "VerifyExpires": "El enlace funciona una sola vez y caduca el {0} UTC.",
+  "VerifyIgnore": "Si no lo has pedido tú, ignora este mensaje. No se enviará nada a esta dirección y no cambiará nada.",
+  "VerifyFooter": "Este es un mensaje automático. No contiene información sobre ningún contenido multimedia."
 }

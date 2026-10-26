@@ -137,5 +137,12 @@
   "AdminReasonStateWriteFailed": "Aceptouse unha entrega pero non se puido rexistrar, así que a execución detívose. É probable un duplicado a próxima vez.",
   "AdminReasonUserFailures": "Non se puido entregar a algúns usuarios. Revisa o rexistro.",
   "AdminReasonCancelled": "A execución foi cancelada.",
-  "AdminReasonUnexpectedError": "Un erro inesperado detivo a execución. Revisa o rexistro."
+  "AdminReasonUnexpectedError": "Un erro inesperado detivo a execución. Revisa o rexistro.",
+  "VerifySubject": "Confirma o teu enderezo de correo",
+  "VerifyIntro": "Alguén pediu usar este enderezo de correo para recibir notificacións de {0}.",
+  "VerifyAction": "Para confirmar que este enderezo é teu, abre esta ligazón:",
+  "VerifyButton": "Confirmar este enderezo",
+  "VerifyExpires": "A ligazón funciona unha soa vez e caduca o {0} UTC.",
+  "VerifyIgnore": "Se non o pediches ti, ignora esta mensaxe. Non se enviará nada a este enderezo e non cambiará nada.",
+  "VerifyFooter": "Esta é unha mensaxe automática. Non contén información sobre ningún contido multimedia."
 }

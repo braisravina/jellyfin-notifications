@@ -38,6 +38,9 @@ public class PluginConfiguration : BasePluginConfiguration
         MaxEntriesPerSection = 25;
         MaxEntriesPerDigest = 100;
         MaxEpisodesPerSeries = 10;
+
+        PublicBaseUrl = string.Empty;
+        VerificationLinkMinutes = 60;
     }
 
     /// <summary>
@@ -119,6 +122,19 @@ public class PluginConfiguration : BasePluginConfiguration
     /// full count.
     /// </summary>
     public int MaxEpisodesPerSeries { get; set; }
+
+    /// <summary>
+    /// Gets or sets the address users reach this server at from outside, for example
+    /// <c>https://jellyfin.example.org</c> (include a sub-path if the server runs under one). Links in
+    /// emails are built from it and from nothing else: never from a request, whose <c>Host</c> header a
+    /// caller controls. Empty disables address verification and live digests, which need such links.
+    /// </summary>
+    public string PublicBaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many minutes an address-verification link works for.
+    /// </summary>
+    public int VerificationLinkMinutes { get; set; }
 
     /// <summary>
     /// Gets the Jellyfin libraries monitored for new media, and which digest section each is

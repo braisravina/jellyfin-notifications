@@ -137,5 +137,12 @@
   "AdminReasonStateWriteFailed": "A delivery was accepted but could not be recorded, so the run stopped. A duplicate is likely next time.",
   "AdminReasonUserFailures": "Some users could not be delivered to. Check the log.",
   "AdminReasonCancelled": "The run was cancelled.",
-  "AdminReasonUnexpectedError": "An unexpected error stopped the run. Check the log."
+  "AdminReasonUnexpectedError": "An unexpected error stopped the run. Check the log.",
+  "VerifySubject": "Confirm your email address",
+  "VerifyIntro": "Someone asked to use this email address for notifications from {0}.",
+  "VerifyAction": "To confirm that this address is yours, open this link:",
+  "VerifyButton": "Confirm this address",
+  "VerifyExpires": "The link works once and expires on {0} UTC.",
+  "VerifyIgnore": "If you did not ask for this, ignore this message. Nothing will be sent to this address and nothing will change.",
+  "VerifyFooter": "This is an automated message. It contains no information about any media."
 }
