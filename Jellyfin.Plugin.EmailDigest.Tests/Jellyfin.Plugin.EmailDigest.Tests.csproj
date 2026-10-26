@@ -27,6 +27,11 @@
       Movie/Episode/MusicAlbum object initializers, not mocks.
     -->
     <PackageReference Include="Moq" Version="4.20.72" />
+    <!--
+      An in-process ASP.NET Core server, so the authorization tests send real HTTP requests through the
+      real MVC pipeline (routing, [Authorize], [Consumes], filters) to the plugin's actual controllers.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>

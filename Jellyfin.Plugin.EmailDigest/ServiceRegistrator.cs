@@ -98,6 +98,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<IUserDirectory>(),
             TimeProvider.System,
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionService>>()));
+        serviceCollection.AddSingleton(_ => new UserApi.UserRequestThrottle(TimeProvider.System));
         serviceCollection.AddSingleton<ILibraryAccessResolver, JellyfinLibraryAccessResolver>();
         serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
     }
