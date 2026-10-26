@@ -6,11 +6,11 @@ user, filtered strictly by what that user is authorized to see in Jellyfin.
 Replaces a standalone notifier (Docker container + JSON user mappings + cron/systemd
 timer + separate web UI) with a native Jellyfin plugin.
 
-**Status: Phase 5 (secure SMTP delivery) implemented and unit-tested; not live-verified.**
-Discovery, the digest model, the renderers and an SMTP transport exist, with an
-administrator page to configure them, but nothing connects them: there is no digest
-orchestration, so **no digest is ever sent**. The only mail the plugin can send is a test
-message an administrator explicitly requests. See Phases below.
+**Status: Phase 6 (scheduled digest orchestration) implemented and unit-tested; not
+live-verified.** The scheduled task now discovers, builds, renders and sends a digest per user and
+records confirmed deliveries. **Nothing is sent after installing or upgrading**: the digest is
+disabled, dry run is on and SMTP is off by default, and no user has notification preferences until
+the Phase 7 page exists. See "Scheduled digest" for the guarantees and their limits.
 
 ## Media discovery
 
@@ -38,7 +38,8 @@ window (`fromUtc` exclusive, `toUtc` inclusive) that a given Jellyfin user may s
   no permission map of its own. If no monitored library is accessible, no query runs at all.
 - **Library validation:** `MonitoredLibraryValidator` compares the configured ids with
   Jellyfin's libraries and reports invalid (empty), deleted/unknown and duplicate entries. It
-  is not wired into saving the configuration yet (Phase 6). At discovery time a deleted or
+  runs when the monitored libraries are saved and when the digest is enabled, and again before
+  every digest run (invalid or deleted libraries abort the run). At discovery time a deleted or
   unknown library is skipped with a warning.
 - **Failures:** a Jellyfin failure raises `MediaDiscoveryException` rather than returning an
   empty list, so the checkpoint is never advanced past items that were not examined.
@@ -46,8 +47,6 @@ window (`fromUtc` exclusive, `toUtc` inclusive) that a given Jellyfin user may s
 
 ### Known limitations
 
-- Discovery and validation are registered but not called by anything yet; the scheduled task
-  is still a stub.
 - Music is reported per album; single audio tracks are not supported.
 - `JellyfinLibraryAccessResolver` (the Jellyfin-facing half of access control) has no unit
   tests because `CollectionFolder` needs Jellyfin's static service locator; unit tests use a
@@ -91,8 +90,9 @@ sends anything, reads or writes checkpoints, or calls Jellyfin.
   "nothing delivered" and not advance the checkpoint.
 - **Limitations:** the HTML was verified by tests and by reading it, not in real mail clients
   (no Outlook, Gmail or Apple Mail rendering check); there is no dark-mode styling (fixed light
-  colours); the 10-episode cap and the default limits are not yet configurable by the
-  administrator; nothing calls the builder or renderer yet.
+  colours). The limits (entries per category, entries per digest, episodes listed per series) are
+  set on the plugin page; the per-digest limit is shared fairly between categories, and entries a
+  limit hides stay pending for the user's next digest.
 
 Golden files in `Jellyfin.Plugin.EmailDigest.Tests/Golden/` hold the exact expected output for
 en/es/gl. After an intentional wording or layout change, regenerate them with
@@ -101,8 +101,8 @@ en/es/gl. After an intentional wording or layout change, regenerate them with
 ## SMTP delivery
 
 `MailKitEmailTransport` (MailKit 4.16.0) hands one finished message to an SMTP server. It
-knows nothing about media, digests, preferences or checkpoints. **No digest is sent yet**:
-Phase 6 will connect discovery, rendering and this transport.
+knows nothing about media, digests, preferences or checkpoints. The digest runner (see
+"Scheduled digest") is what connects discovery, rendering and this transport.
 
 ### Settings
 
@@ -225,20 +225,134 @@ recipient addresses, display names, message content, server replies or exception
 
 See `docs/phase5-live-verification.md` (disposable, reversible, no production changes).
 
-### Integration requirements for Phase 6
+## Scheduled digest
 
-- Build a message **per user** with `DigestRenderer`, and send it with `IEmailTransport.SendAsync` and
-  an `OutgoingEmail` for that one address. Never reuse a rendered digest or a connection across users.
-- Read the password only through `ISmtpPasswordStore.ReadAsync`, build `SmtpSettings.From(config, pw)`,
-  and never log the settings object (its `ToString` is redacted).
-- Treat only `Accepted` as success. Advance the checkpoint only after **every** intended recipient was
-  accepted, or define and document per-user handling. On `DigestRenderException`, `MediaDiscoveryException`
-  or any other outcome, do not advance it for that user's items.
-- Retries, back-off, per-user failure isolation and duplicate prevention belong to Phase 6; the
-  transport performs one bounded attempt and never retries.
-- Skip users with notifications off or an invalid address (`OutgoingEmail` is validated again).
-- Run the monitored-library validator when saving and before a run.
-- Decide where `DigestOptions` limits are configured.
+`SendEmailDigestTask` (Dashboard -> Scheduled Tasks -> Email Digest, daily at 08:00 by default) calls
+`DigestRunner`. A manual "run" from that page takes exactly the same path, so it obeys the same
+safeguards.
+
+### Safeguards and modes
+
+| Setting | Default | Effect |
+|---|---|---|
+| Enable digest emails | off | While off the task does nothing at all (no discovery, no mail, no state) |
+| Dry run | **on** | A run builds and renders each user's digest and logs counts, but sends nothing and records nothing |
+| Enable SMTP | off | A live run aborts if SMTP is not enabled |
+
+Nothing is enabled by installing or upgrading. To send for real an administrator must enable SMTP,
+choose the monitored libraries, enable the digest and turn dry run off. Users must also have
+preferences (email address, language, notifications on); Phase 7 adds the page for users to set them.
+The plugin page's Status section shows the mode and the last run.
+
+### What one run does
+
+1. Exit if disabled. Take the run lock, or do nothing if another run is in progress.
+2. Fix one upper bound for the whole run: now minus five minutes (so media whose creation is still
+   being saved is not skipped). Media created later belongs to the next run.
+3. Abort before anything is sent or advanced if the configuration is invalid, a monitored library is
+   invalid or deleted or cannot be verified, SMTP is disabled or the login has no password (live runs),
+   or the delivery state file cannot be trusted. No monitored libraries is a skip, never
+   "monitor everything".
+4. For each user with notifications on, in id order: skip unknown or disabled Jellyfin accounts and
+   invalid stored addresses (their state is untouched); choose the user's language (else the default);
+   work out their window; discover media **as that user** (Jellyfin's own permissions); drop items
+   already delivered; build and render the digest; send **one** message to that user; and only after the
+   SMTP server accepts it, record that user's delivery. If nothing is new, no email is sent and the
+   checkpoint moves to the end of the examined window.
+
+### Per-user checkpoints and baselines
+
+Each user has an independent record in `delivery-state.json`: their checkpoint (the exclusive start of
+their next window) and the items delivered in the last 90 days. A window is (checkpoint, upper bound]:
+exclusive start, inclusive end.
+
+- A successful delivery advances only that user's checkpoint. A failure, an uncertain outcome,
+  cancellation or a recording error leaves it where it was. One user's failure never blocks another.
+- **New user (no record):** gets only the configured fallback lookback (0-720 hours, default 168),
+  never the whole library. With a lookback of 0 the first run sends nothing and only records "from now".
+- **Paused user (notifications off):** their record is left alone, so nothing pending is lost. When
+  notifications are turned back on they are caught up from their checkpoint, but never further back
+  than 30 days; older media is deliberately not announced.
+- **Display limits never lose notifications:** entries hidden by the per-category or per-digest limit
+  stay pending. The checkpoint moves only to just before the oldest hidden item, items already shown
+  are remembered, and the digest tells the user that the rest follows in the next one.
+- **Re-imported media:** Jellyfin gives a re-added file the same id with a new creation date. Items
+  delivered within the last 90 days are not announced again; after 90 days they would be.
+- **Changing the monitored libraries:** windows are time based, not per library. Adding a library
+  reports its items created since each user's checkpoint (no backfill of older items); removing one
+  simply stops its items being reported.
+- A legacy global `checkpoint.json` from before per-user state (no released version wrote one) is only
+  read, as a starting point for users with no record. It is never modified, moved or deleted.
+- Writes are atomic (temp file then rename) and the previous version is kept as
+  `delivery-state.json.bak`. A damaged, newer-format or invalid file stops the run and is never
+  overwritten or treated as empty. **Recovery:** stop Jellyfin or wait for no run, then copy
+  `delivery-state.json.bak` over `delivery-state.json` (users may then get one duplicate digest), or
+  delete the file to treat everyone as new (each gets the bounded lookback).
+
+### Where state lives, and upgrades
+
+In Jellyfin 10.11.8 a plugin's data folder is `plugins/Jellyfin.Plugin.EmailDigest/` (named after the
+assembly file), a **sibling** of the versioned install folder `plugins/Email Digest_0.1.0.0/`, not inside
+it. Replacing the plugin with a newer version therefore keeps the delivery state, user preferences, last-run
+summary and the stored SMTP password. This follows the server source; confirm it on your server (the
+live-verification document has a step). If the plugin is ever installed into a folder named exactly
+`Jellyfin.Plugin.EmailDigest`, the data folder would be the install folder and could be deleted on upgrade;
+use the versioned folder name. Files: `delivery-state.json` (+ `.bak`), `last-run.json`,
+`digest-run.lock`, `user-preferences.json`, `smtp-password.secret`.
+
+### Failures, retries and uncertainty
+
+| Result | Reaction |
+|---|---|
+| Accepted by the SMTP server | Record the delivery for that user |
+| Connection failed, timeout, or a 4xx reply | Retry, at most 3 attempts in total (waits of 2 s then 10 s), then fail that user |
+| Recipient refused (5xx) or invalid request | Fail that user, no retry; others continue |
+| Login failed, TLS failed, sender refused | Stop the whole run: every user would fail the same way and retrying risks locking the account |
+| **Uncertain** (connection lost after sending began) | Not retried now, not recorded; a later run may resend |
+| Cancelled | Stop; nothing for the current user is recorded |
+
+There are no background retries: whatever is left is picked up by the next scheduled run.
+
+**This is at-least-once delivery, not exactly-once.** SMTP cannot offer exactly-once. If the server accepts a
+message and the reply is lost, or if recording a confirmed delivery fails, the next run resends and the user
+may receive a duplicate. A resend of the same digest carries the same Message-ID (a hash of user, window and
+items) and each attempt has its own id in the log, which helps diagnosis; nothing assumes a mail provider
+deduplicates on it. A write failure after acceptance stops the run and is reported as "accepted but not
+recorded".
+
+### Concurrency
+
+One run at a time. The lock is an in-process lock per data folder plus an exclusive operating-system lock on
+`digest-run.lock`, so scheduled and manual runs, and even two Jellyfin processes sharing the folder, cannot
+overlap. The lock is the open file handle: a crash releases it, and a leftover file does not block anything. If
+a run is already in progress the new one does nothing and says so. Jellyfin running as several instances against
+one shared folder is not a supported deployment.
+
+### Reporting
+
+Every run logs phases and counts and saves a summary (`last-run.json`: counts only, no names, addresses, user
+ids, titles or content). A run with any failed or uncertain user, or one that stopped early, ends
+`CompletedWithFailures` or `Aborted`, is logged as a warning, and makes the scheduled task **fail** in Jellyfin's
+task list (the message holds counts and a reason code only). It is never shown as a plain success.
+
+### Known limitations of Phase 6
+
+- Not live-verified; see `docs/phase6-live-verification.md`.
+- No user can set preferences until Phase 7, so no real digest can be delivered until preferences are seeded by
+  hand or the Phase 7 page exists.
+- At-least-once delivery (above), and a 5-minute settle margin means media appears in the next run after it.
+- The deleted-library check aborts the whole run; fix the monitored libraries to resume.
+- Jellyfin's task list shows a failed task but not the per-user breakdown; use the log and the Status section.
+- A paused user is caught up at most 30 days.
+- Delivery state for users deleted from Jellyfin is kept (it is small).
+
+### Phase 7 prerequisites
+
+- A user-facing page (or API) to set email, language and notifications, authenticated as that user and able to
+  change only their own preferences. The runner reads `user-preferences.json` and writes nothing to it.
+- Decide how an address is verified, since a typo or a hostile address sends mail to a third party.
+- A way for a user to see or reset their own delivery status if wanted.
+- Unsubscribe handling: the digest currently has no link, by design (no tokens in URLs).
 
 ## Persistence and secrets
 
@@ -250,11 +364,11 @@ See `docs/phase5-live-verification.md` (disposable, reversible, no production ch
   password is not part of it (see "SMTP delivery").
 - Global configuration is validated before every save (`Plugin.UpdateConfiguration`
   override): an invalid save is rejected and the previous configuration is kept.
-- Per-user notification preferences and the digest checkpoint are stored as this
-  plugin's own JSON files under the plugin's data folder (which is the plugin's own
-  install directory, e.g. `.../plugins/Email Digest_0.1.0.0/`), written with an
-  atomic write-temp-then-rename pattern — unlike Jellyfin's own XML config save, which
-  writes directly to the target file with no such protection.
+- Per-user notification preferences and per-user delivery state are stored as this plugin's own
+  JSON files under the plugin's data folder (`plugins/Jellyfin.Plugin.EmailDigest/`, a sibling of
+  the versioned install folder; see "Where state lives, and upgrades"), written with an atomic
+  write-temp-then-rename pattern, unlike Jellyfin's own XML config save, which writes directly
+  to the target file with no such protection.
 
 ## Phases
 
@@ -268,7 +382,8 @@ See `docs/phase5-live-verification.md` (disposable, reversible, no production ch
    live-verified** and not yet called by the scheduled task. Nothing is sent.
 5. Secure SMTP delivery — implemented and unit-tested (386 tests, including a local fake SMTP
    server); **not live-verified**. Sends nothing except an administrator-requested test message.
-6. Complete scheduled digest — not started.
+6. Scheduled digest orchestration — implemented and unit-tested (588 tests); **not live-verified**.
+   Disabled and dry-run by default; no preferences exist until Phase 7.
 7. User self-service — not started.
 8. Packaging — not started.
 
@@ -310,6 +425,13 @@ plugin logic in isolation (config validation, per-user preference storage, check
 storage, localization, media discovery, library validation, digest building and rendering,
 SMTP transport and the administrator API) using temp-directory-backed
 fakes, mocked Jellyfin interfaces and in-process instances.
+
+Phase 6 adds tests for the digest runner against real storage in a temporary folder with fakes for
+Jellyfin and the network (nothing is sent): per-user checkpoints, baselines, retries and failure
+classes, uncertain outcomes, cancellation, overlapping runs, stale locks, restart recovery, library
+and configuration aborts, hidden-entry carry-over, re-imports, dry run, logging without personal
+data, and the scheduled task and status endpoint. A mutation check confirmed that letting a failed
+delivery advance a checkpoint fails the suite.
 
 Phase 5 adds tests for SMTP validation, the password store and lifecycle, the absence of any
 secret in the configuration's JSON and XML, the transport against a disposable in-process SMTP
