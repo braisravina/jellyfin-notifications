@@ -15,6 +15,7 @@ using Xunit;
 
 namespace Jellyfin.Plugin.EmailDigest.Tests.Configuration;
 
+[Collection(PluginInstanceCollection.Name)]
 public sealed class DigestSettingsAndLibraryValidationTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "emaildigest-libs-" + Guid.NewGuid().ToString("N"));

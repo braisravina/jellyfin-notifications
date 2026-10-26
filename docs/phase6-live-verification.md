@@ -37,7 +37,7 @@ media, enforces library permissions, schedules tasks or lays out the plugin fold
    Series); set SMTP host/port, Encryption **None** (capture server), sender `digest@example.test`; save;
    enable SMTP delivery. Leave "Enable digest emails" and "Dry run" for the scenarios below.
 7. Seed preferences. Get user ids (`curl -H 'Authorization: MediaBrowser Token="ADMIN_TOKEN"'
-   http://HOST:8096/Users`), then create `user-preferences.json` in the plugin **data folder** (see check 1) as a
+   http://HOST:8096/Users`), then create `user-preferences.json` in the state folder (see check 1) as a
    JSON array with one object per user:
 
    ```json
@@ -51,8 +51,9 @@ media, enforces library permissions, schedules tasks or lays out the plugin fold
 
 ## Checks
 
-1. **Data folder location.** `ls <config>/plugins/`: the data folder is `Jellyfin.Plugin.EmailDigest/`, next to
-   `Email Digest_0.1.0.0/` (not inside it). Record the real path; this decides whether state survives upgrades.
+1. **Data folder location.** The state folder is `<config>/data/EmailDigest/` (the server's data directory), not
+   under `plugins/`. Record the real path and confirm it is on the persistent volume; this decides whether state
+   survives upgrades. (Earlier versions used `plugins/Jellyfin.Plugin.EmailDigest/`; see the README.)
 2. **Disabled does nothing.** With the digest disabled run the task from Dashboard -> Scheduled Tasks. The task
    succeeds, the log says it is disabled, the capture server is empty, no `delivery-state.json` appears.
 3. **Dry run.** Enable the digest, keep dry run on, run the task. Status shows mode "Dry run" and a last run with

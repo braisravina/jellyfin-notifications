@@ -53,12 +53,12 @@ internal static class AtomicJsonFile
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory))
         {
-            Directory.CreateDirectory(directory);
+            PrivateFile.EnsureDirectory(directory);
         }
 
         var tempPath = path + ".tmp";
 
-        using (var stream = File.Create(tempPath))
+        using (var stream = PrivateFile.CreateOrReplace(tempPath))
         {
             await JsonSerializer.SerializeAsync(stream, value, Options, cancellationToken).ConfigureAwait(false);
         }

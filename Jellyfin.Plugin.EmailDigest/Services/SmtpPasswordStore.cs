@@ -110,7 +110,7 @@ public sealed class SmtpPasswordStore : ISmtpPasswordStore, IDisposable
         await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_storedPath)!);
+            PrivateFile.EnsureDirectory(Path.GetDirectoryName(_storedPath)!);
             var temp = _storedPath + ".tmp";
             File.Delete(temp);
 

@@ -291,14 +291,20 @@ exclusive start, inclusive end.
 
 ### Where state lives, and upgrades
 
-In Jellyfin 10.11.8 a plugin's data folder is `plugins/Jellyfin.Plugin.EmailDigest/` (named after the
-assembly file), a **sibling** of the versioned install folder `plugins/Email Digest_0.1.0.0/`, not inside
-it. Replacing the plugin with a newer version therefore keeps the delivery state, user preferences, last-run
-summary and the stored SMTP password. This follows the server source; confirm it on your server (the
-live-verification document has a step). If the plugin is ever installed into a folder named exactly
-`Jellyfin.Plugin.EmailDigest`, the data folder would be the install folder and could be deleted on upgrade;
-use the versioned folder name. Files: `delivery-state.json` (+ `.bak`), `last-run.json`,
-`digest-run.lock`, `user-preferences.json`, `smtp-password.secret`.
+State lives in `<server data directory>/EmailDigest/` (`IApplicationPaths.DataPath`; `/config/data/EmailDigest/` in
+the standard container), **outside** the `plugins/` tree. Installing, replacing, disabling or removing a plugin
+version therefore never touches it. Earlier versions used `plugins/Jellyfin.Plugin.EmailDigest/` (Jellyfin's
+per-plugin data folder), which is inside the tree Jellyfin's plugin manager installs into and cleans.
+
+On the first start of this version the files below are **copied** from the old folder (never moved, changed or
+deleted), each to a temporary name, checked by SHA-256 and renamed into place; a completion marker
+(`storage-migration.json`) is written last. An interrupted migration simply runs again. A file that already exists
+in the new folder is never overwritten. If the copy cannot be completed the plugin refuses to use state at all
+(it never starts from empty state). **Downgrade:** the old folder still holds the state as it was at the upgrade,
+so an older version starts from that (changes made after the upgrade are in the new folder only). **Upgrading
+again** keeps the new folder and does not re-import the older copy. Files: `delivery-state.json` (+ `.bak`),
+`checkpoint.json` (legacy hint, read only), `last-run.json`, `user-preferences.json`, `smtp-password.secret`;
+`digest-run.lock` is created fresh. New files are created readable by the server's account only.
 
 ### Failures, retries and uncertainty
 
@@ -365,8 +371,7 @@ task list (the message holds counts and a reason code only). It is never shown a
 - Global configuration is validated before every save (`Plugin.UpdateConfiguration`
   override): an invalid save is rejected and the previous configuration is kept.
 - Per-user notification preferences and per-user delivery state are stored as this plugin's own
-  JSON files under the plugin's data folder (`plugins/Jellyfin.Plugin.EmailDigest/`, a sibling of
-  the versioned install folder; see "Where state lives, and upgrades"), written with an atomic
+  JSON files under `<server data directory>/EmailDigest/` (see "Where state lives, and upgrades"), written with an atomic
   write-temp-then-rename pattern, unlike Jellyfin's own XML config save, which writes directly
   to the target file with no such protection.
 

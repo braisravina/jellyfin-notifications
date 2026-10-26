@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
+using Jellyfin.Plugin.EmailDigest.Services;
 
 namespace Jellyfin.Plugin.EmailDigest.Delivery;
 
@@ -46,7 +47,7 @@ public sealed class FileDigestRunLock : IDigestRunLock
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            PrivateFile.EnsureDirectory(Path.GetDirectoryName(_path)!);
             var stream = new FileStream(_path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             return new Handle(stream, _processLock);
         }

@@ -13,6 +13,7 @@ using Xunit;
 
 namespace Jellyfin.Plugin.EmailDigest.Tests.Configuration;
 
+[Collection(PluginInstanceCollection.Name)]
 public sealed class ConfigurationChangePolicyTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "emaildigest-policy-" + Guid.NewGuid().ToString("N"));

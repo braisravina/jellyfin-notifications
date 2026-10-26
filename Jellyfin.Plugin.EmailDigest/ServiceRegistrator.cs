@@ -4,6 +4,8 @@ using Jellyfin.Plugin.EmailDigest.Delivery;
 using Jellyfin.Plugin.EmailDigest.Digest;
 using Jellyfin.Plugin.EmailDigest.Email;
 using Jellyfin.Plugin.EmailDigest.Services;
+using Jellyfin.Plugin.EmailDigest.Storage;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,17 +28,22 @@ public class ServiceRegistrator : IPluginServiceRegistrator
     /// <inheritdoc />
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
+        serviceCollection.AddSingleton<IPluginStorage>(provider => StorageMigrator.Prepare(
+            provider.GetRequiredService<IApplicationPaths>().DataPath,
+            GetLegacyDataFolderPath(),
+            TimeProvider.System,
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("Jellyfin.Plugin.EmailDigest.Storage")));
         serviceCollection.AddSingleton<ILocalizationService, LocalizationService>();
-        serviceCollection.AddSingleton<IUserPreferenceRepository>(_ => new UserPreferenceRepository(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IUserPreferenceRepository>(p => new UserPreferenceRepository(StorageRoot(p)));
         serviceCollection.AddSingleton<IUserDirectory, JellyfinUserDirectory>();
-        serviceCollection.AddSingleton<IRunSummaryStore>(_ => new RunSummaryStore(GetDataFolderPath()));
-        serviceCollection.AddSingleton<IDigestRunLock>(_ => new FileDigestRunLock(GetDataFolderPath()));
-        serviceCollection.AddSingleton<IDeliveryStateStore>(_ => new DeliveryStateStore(GetDataFolderPath(), TimeProvider.System));
-        serviceCollection.AddSingleton<ICheckpointService>(_ => new CheckpointService(GetDataFolderPath()));
+        serviceCollection.AddSingleton<IRunSummaryStore>(p => new RunSummaryStore(StorageRoot(p)));
+        serviceCollection.AddSingleton<IDigestRunLock>(p => new FileDigestRunLock(StorageRoot(p)));
+        serviceCollection.AddSingleton<IDeliveryStateStore>(p => new DeliveryStateStore(StorageRoot(p), TimeProvider.System));
+        serviceCollection.AddSingleton<ICheckpointService>(p => new CheckpointService(StorageRoot(p)));
         serviceCollection.AddSingleton<IDigestBuilder, DigestBuilder>();
         serviceCollection.AddSingleton<IDigestRenderer, DigestRenderer>();
         serviceCollection.AddSingleton<IMonitoredLibraryValidator, MonitoredLibraryValidator>();
-        serviceCollection.AddSingleton<ISmtpPasswordStore>(_ => new SmtpPasswordStore(GetDataFolderPath()));
+        serviceCollection.AddSingleton<ISmtpPasswordStore>(p => new SmtpPasswordStore(StorageRoot(p)));
         serviceCollection.AddSingleton<IEmailTransport, MailKitEmailTransport>();
         serviceCollection.AddSingleton<ISmtpConfigurationAccessor, PluginConfigurationAccessor>();
         serviceCollection.AddSingleton<LibraryAdminService>();
@@ -68,7 +75,13 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IMediaDiscoveryService, MediaDiscoveryService>();
     }
 
-    private static string GetDataFolderPath()
+    private static string StorageRoot(IServiceProvider provider)
+    {
+        return provider.GetRequiredService<IPluginStorage>().Root;
+    }
+
+    // Where earlier versions kept state. Read only, as the source of a copy; never written to.
+    private static string GetLegacyDataFolderPath()
     {
         return Plugin.Instance?.DataFolderPath
             ?? throw new InvalidOperationException("Email Digest plugin instance is not initialized yet.");

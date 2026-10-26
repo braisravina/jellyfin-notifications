@@ -64,7 +64,7 @@ trust (for example the tool's self-signed one):
    `GET /Plugins/0e2dad96-d957-4026-8abb-0ca78068c5f0/Configuration`) and view the page source and
    the browser's local/session storage: the password appears nowhere.
 4. `grep -r LiveCheck-7f3a` the container's Jellyfin log directory: no match. Note that
-   `<config>/plugins/Email Digest_0.1.0.0/smtp-password.secret` **does** contain it, as plain text;
+   `<config>/data/EmailDigest/smtp-password.secret` **does** contain it, as plain text;
    confirm its mode is `-rw-------` (`ls -l`). This is the documented limitation.
 5. Remove password: status says none; `smtp-password.secret` is gone.
 6. Docker secret: stop the container, add `EMAILDIGEST_SMTP_PASSWORD_FILE` pointing at a mounted
