@@ -18,6 +18,7 @@
                     <h3 data-i18n="AdminSectionStatus"></h3>
                     <div id="StatusMode" class="fieldDescription" role="status"></div>
                     <div id="StatusLastRun" class="fieldDescription" role="status"></div>
+                    <div id="StatusSubscribers" class="fieldDescription" role="status"></div>
                 </div>
 
                 <form id="DigestForm">
@@ -42,6 +43,17 @@
                         <label class="inputLabel inputLabelUnfocused" for="FallbackLookbackHours" data-i18n="AdminLookback"></label>
                         <input id="FallbackLookbackHours" type="number" is="emby-input" min="0" max="720" />
                         <div class="fieldDescription" data-i18n="AdminLookbackDesc"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PublicBaseUrl" data-i18n="AdminPublicUrl"></label>
+                        <input id="PublicBaseUrl" type="url" is="emby-input" maxlength="200" autocomplete="off" spellcheck="false" />
+                        <div class="fieldDescription" data-i18n="AdminPublicUrlDesc"></div>
+                        <div id="PublicUrlWarning" class="fieldDescription" role="status"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="VerificationLinkMinutes" data-i18n="AdminVerifyMinutes"></label>
+                        <input id="VerificationLinkMinutes" type="number" is="emby-input" min="5" max="1440" />
+                        <div class="fieldDescription" data-i18n="AdminVerifyMinutesDesc"></div>
                     </div>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
@@ -366,6 +378,16 @@
                 // Counts and fixed phrases only: the status never contains names, addresses or titles.
                 function renderStatus(status) {
                     say('#StatusMode', t('AdminStatusMode' + status.Mode));
+                    var counts = status.Subscribers;
+                    if (status.PreferencesUnreadable) {
+                        say('#StatusSubscribers', t('AdminStatusPreferencesProblem'), true);
+                    } else if (counts) {
+                        say('#StatusSubscribers', template(t('AdminStatusSubscribers'), [counts.Total, counts.WantDigests, counts.WillReceive, counts.WaitingForVerifiedAddress]));
+                    }
+                    var warning = '';
+                    if (!status.PublicAddressSet) { warning = t('AdminPublicUrlMissing'); }
+                    else if (status.PublicAddressInsecure) { warning = t('AdminPublicUrlInsecure'); }
+                    say('#PublicUrlWarning', warning, !!warning);
                     var last = status.LastRun;
                     if (!last) {
                         say('#StatusLastRun', t('AdminStatusNoRun'));
@@ -401,6 +423,8 @@
                         $('#DefaultLanguage').value = config.DefaultLanguage;
                         $('#FallbackLookbackHours').value = config.FallbackLookbackHours;
                         $('#DigestDryRun').checked = config.DigestDryRun;
+                        $('#PublicBaseUrl').value = config.PublicBaseUrl || '';
+                        $('#VerificationLinkMinutes').value = config.VerificationLinkMinutes;
                         $('#MaxEntriesPerSection').value = config.MaxEntriesPerSection;
                         $('#MaxEntriesPerDigest').value = config.MaxEntriesPerDigest;
                         $('#MaxEpisodesPerSeries').value = config.MaxEpisodesPerSeries;
@@ -433,6 +457,8 @@
                         config.DefaultLanguage = $('#DefaultLanguage').value;
                         config.FallbackLookbackHours = parseInt($('#FallbackLookbackHours').value, 10) || 0;
                         config.DigestDryRun = $('#DigestDryRun').checked;
+                        config.PublicBaseUrl = $('#PublicBaseUrl').value.trim();
+                        config.VerificationLinkMinutes = parseInt($('#VerificationLinkMinutes').value, 10) || 0;
                         config.MaxEntriesPerSection = parseInt($('#MaxEntriesPerSection').value, 10) || 0;
                         config.MaxEntriesPerDigest = parseInt($('#MaxEntriesPerDigest').value, 10) || 0;
                         config.MaxEpisodesPerSeries = parseInt($('#MaxEpisodesPerSeries').value, 10) || 0;

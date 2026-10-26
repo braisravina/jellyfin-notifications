@@ -209,5 +209,13 @@
   "LinkError": "Algo salió mal. Inténtalo más tarde.",
   "LinkNoToken": "Este enlace está incompleto. Ábrelo de nuevo desde el correo.",
   "LinkWorking": "Espera un momento...",
-  "LinkOpenPreferences": "Abrir mis preferencias"
+  "LinkOpenPreferences": "Abrir mis preferencias",
+  "AdminPublicUrl": "Dirección pública del servidor",
+  "AdminPublicUrlDesc": "La dirección con la que se accede a este servidor desde fuera, por ejemplo https://jellyfin.example.org (añade la subruta si el servidor funciona bajo una). Los enlaces de los correos se construyen solo con ella. Es necesaria para confirmar direcciones de correo y para enviar resúmenes reales.",
+  "AdminPublicUrlMissing": "No hay dirección pública del servidor: los usuarios no pueden confirmar su correo y no se enviarán resúmenes reales.",
+  "AdminPublicUrlInsecure": "Esta dirección usa http, así que los enlaces de un solo uso de los correos viajan sin cifrar. Usa https si puedes.",
+  "AdminVerifyMinutes": "Duración del enlace de confirmación (minutos)",
+  "AdminVerifyMinutesDesc": "Cuánto tiempo funciona el enlace de un correo de confirmación, de 5 a 1440 minutos. Cada enlace funciona una sola vez.",
+  "AdminStatusSubscribers": "Personas con preferencias: {0}. Con resúmenes activados: {1}. Recibirán resúmenes: {2}. Esperando una dirección confirmada: {3}.",
+  "AdminStatusPreferencesProblem": "No se puede confiar en el archivo de preferencias de usuarios, así que no se envía nada. Consulta la documentación para recuperarlo."
 }

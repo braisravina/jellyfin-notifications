@@ -209,5 +209,13 @@
   "LinkError": "Something went wrong. Try again later.",
   "LinkNoToken": "This link is incomplete. Open it again from the email.",
   "LinkWorking": "Please wait...",
-  "LinkOpenPreferences": "Open my preferences"
+  "LinkOpenPreferences": "Open my preferences",
+  "AdminPublicUrl": "Public server address",
+  "AdminPublicUrlDesc": "The address people use to reach this server from outside, for example https://jellyfin.example.org (add the sub-path if the server runs under one). Links in emails are built from it and nothing else. Required to confirm email addresses and to send real digests.",
+  "AdminPublicUrlMissing": "No public server address is set: users cannot confirm email addresses and real digests will not be sent.",
+  "AdminPublicUrlInsecure": "This address uses http, so the one-time links in emails travel unencrypted. Use https if you can.",
+  "AdminVerifyMinutes": "Confirmation link lifetime (minutes)",
+  "AdminVerifyMinutesDesc": "How long the link in a confirmation email works, from 5 to 1440 minutes. Each link works once.",
+  "AdminStatusSubscribers": "People with preferences: {0}. Digests on: {1}. Will receive digests: {2}. Waiting for a confirmed address: {3}.",
+  "AdminStatusPreferencesProblem": "The user preferences file cannot be trusted, so nothing is sent. See the documentation to recover it."
 }

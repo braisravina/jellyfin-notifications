@@ -63,7 +63,7 @@ internal sealed class PipelineHost : IAsyncDisposable
                 services.AddSingleton<ISmtpConfigurationAccessor>(config);
                 services.AddSingleton(new SmtpAdminService(config, new SmtpPasswordStore(_folder, () => null), new RunnerHarness.FakeTransport(), new LocalizationService(), time, NullLogger<SmtpAdminService>.Instance));
                 services.AddSingleton(new LibraryAdminService(new Mock<ILibraryManager>().Object, config, NullLogger<LibraryAdminService>.Instance));
-                services.AddSingleton(new StatusAdminService(config, new RunSummaryStore(_folder)));
+                services.AddSingleton(new StatusAdminService(config, new RunSummaryStore(_folder), new UserPreferenceRepository(_folder)));
 
                 services.AddAuthentication(Scheme).AddScheme<AuthenticationSchemeOptions, StandInAuthenticationHandler>(Scheme, _ => { });
                 services.AddAuthorization(options =>

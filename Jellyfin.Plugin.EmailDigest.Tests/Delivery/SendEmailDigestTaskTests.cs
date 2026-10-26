@@ -165,7 +165,7 @@ public sealed class SendEmailDigestTaskTests : IDisposable
     [Fact]
     public async Task Status_NoRunYet_ReportsTheModeAndNoLastRun()
     {
-        var service = new StatusAdminService(new RunnerHarness.FixedConfig(_h.Config), _h.Summaries);
+        var service = new StatusAdminService(new RunnerHarness.FixedConfig(_h.Config), _h.Summaries, _h.Preferences);
 
         var dto = Assert.IsType<DigestStatusDto>((await service.GetStatusAsync(CancellationToken.None)).Body);
 
@@ -181,7 +181,7 @@ public sealed class SendEmailDigestTaskTests : IDisposable
     {
         _h.Config.DigestEnabled = enabled;
         _h.Config.DigestDryRun = dryRun;
-        var service = new StatusAdminService(new RunnerHarness.FixedConfig(_h.Config), _h.Summaries);
+        var service = new StatusAdminService(new RunnerHarness.FixedConfig(_h.Config), _h.Summaries, _h.Preferences);
 
         var dto = (DigestStatusDto)(await service.GetStatusAsync(CancellationToken.None)).Body!;
 
@@ -194,7 +194,7 @@ public sealed class SendEmailDigestTaskTests : IDisposable
         var user = await _h.AddUserAsync("Private Person", "private.person@example.com");
         _h.Discovery.Give(user, RunnerHarness.Movie("Confidential Title", Upper.AddHours(-2)));
         await _h.RunAsync();
-        var service = new StatusAdminService(new RunnerHarness.FixedConfig(_h.Config), _h.Summaries);
+        var service = new StatusAdminService(new RunnerHarness.FixedConfig(_h.Config), _h.Summaries, _h.Preferences);
 
         var response = await service.GetStatusAsync(CancellationToken.None);
 
