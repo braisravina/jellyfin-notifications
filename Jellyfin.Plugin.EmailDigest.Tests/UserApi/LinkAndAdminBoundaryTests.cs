@@ -118,11 +118,12 @@ public sealed class LinkAndAdminBoundaryTests : IAsyncDisposable
     [Theory]
     [InlineData("/EmailDigest/Verify?token=t")]
     [InlineData("/EmailDigest/Unsubscribe?token=t")]
-    public async Task ALinkIsNeverActedOnByAGet_SoMailScannersCannotTriggerIt(string path)
+    public async Task ALinkIsNeverActedOnByAGet_ItOnlyShowsAPageWithAButton(string path)
     {
         var response = await SendAsync(HttpMethod.Get, path);
 
-        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.StartsWith("text/html", response.Content.Headers.ContentType?.ToString(), StringComparison.Ordinal);
         _service.Verify(s => s.ConfirmAddressAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
         _service.Verify(s => s.UnsubscribeAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -205,23 +206,27 @@ public sealed class LinkAndAdminBoundaryTests : IAsyncDisposable
     public void ThePluginHasExactlyTheseControllers()
     {
         Assert.Equal(
-            new[] { nameof(EmailDigestAdminController), nameof(EmailDigestLinkController), nameof(EmailDigestUserController) },
+            new[] { nameof(EmailDigestAdminController), nameof(EmailDigestLinkController), nameof(EmailDigestPageController), nameof(EmailDigestUserController) },
             Controllers.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
-    public void OnlyTheLinkControllerIsAnonymous_AndOnlyWithTwoPostActions()
+    public void OnlyTheLinkAndPageControllersAreAnonymous_TheLinkOnesWithTwoPostsTheOthersWithFourGets()
     {
         foreach (var controller in Controllers)
         {
             var anonymous = controller.GetCustomAttributes<AllowAnonymousAttribute>(true).Any()
                             || Actions(controller).Any(a => a.GetCustomAttributes<AllowAnonymousAttribute>(true).Any());
-            Assert.Equal(controller == typeof(EmailDigestLinkController), anonymous);
+            Assert.Equal(controller == typeof(EmailDigestLinkController) || controller == typeof(EmailDigestPageController), anonymous);
         }
 
-        var actions = Actions(typeof(EmailDigestLinkController));
-        Assert.Equal(2, actions.Length);
-        Assert.All(actions, a => Assert.IsType<HttpPostAttribute>(Assert.Single(a.GetCustomAttributes<HttpMethodAttribute>())));
+        var links = Actions(typeof(EmailDigestLinkController));
+        Assert.Equal(2, links.Length);
+        Assert.All(links, a => Assert.IsType<HttpPostAttribute>(Assert.Single(a.GetCustomAttributes<HttpMethodAttribute>())));
+
+        var pages = Actions(typeof(EmailDigestPageController));
+        Assert.Equal(4, pages.Length);
+        Assert.All(pages, a => Assert.IsType<HttpGetAttribute>(Assert.Single(a.GetCustomAttributes<HttpMethodAttribute>())));
     }
 
     [Fact]
@@ -258,7 +263,7 @@ public sealed class LinkAndAdminBoundaryTests : IAsyncDisposable
     {
         var gets = Controllers.SelectMany(Actions).Where(a => a.GetCustomAttributes<HttpGetAttribute>().Any()).Select(a => a.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
 
-        Assert.Equal(new[] { "GetLibraries", "GetOverview", "GetSettings", "GetStatus", "GetStrings" }, gets);
+        Assert.Equal(new[] { "GetLibraries", "GetOverview", "GetSettings", "GetStatus", "GetStrings", "GetStrings", "PreferencesPage", "UnsubscribePage", "VerifyPage" }, gets);
     }
 
     [Fact]

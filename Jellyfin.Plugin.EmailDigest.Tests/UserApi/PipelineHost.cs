@@ -56,6 +56,7 @@ internal sealed class PipelineHost : IAsyncDisposable
                 services.AddLogging();
                 services.AddControllers().AddApplicationPart(typeof(EmailDigestUserController).Assembly);
                 services.AddSingleton(service);
+                services.AddSingleton<ILocalizationService>(new LocalizationService());
                 services.AddSingleton(new UserRequestThrottle(time));
 
                 var config = new RunnerHarness.FixedConfig(new PluginConfiguration());

@@ -56,6 +56,8 @@
   <ItemGroup>
     <None Remove="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <None Remove="UserApi\Pages\page.html" />
+    <EmbeddedResource Include="UserApi\Pages\page.html" />
     <None Remove="Localization\en.json" />
     <EmbeddedResource Include="Localization\en.json" />
     <None Remove="Localization\es.json" />

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Email Digest</title>
+<style>
+:root { color-scheme: light dark; --bg: #f5f6f8; --card: #ffffff; --text: #1f2933; --muted: #52606d; --line: #d9dde3; --accent: #0b6e99; --accent-text: #ffffff; --good: #137333; --bad: #b3261e; }
+@media (prefers-color-scheme: dark) { :root { --bg: #14181d; --card: #1e242b; --text: #e4e7eb; --muted: #9aa5b1; --line: #323b45; --accent: #4cb3d9; --accent-text: #0b1620; --good: #6fcf97; --bad: #f2877e; } }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+main { max-width: 640px; margin: 0 auto; }
+h1 { font-size: 1.5rem; margin: 8px 0 4px; }
+h2 { font-size: 1.1rem; margin: 0 0 8px; }
+section, .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin: 16px 0; }
+p { margin: 8px 0; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.ok { color: var(--good); }
+.err { color: var(--bad); }
+.notice { border-left: 4px solid var(--accent); padding-left: 12px; }
+label { display: block; font-weight: 600; margin: 8px 0 4px; }
+.row { display: flex; align-items: center; gap: 12px; }
+.row label { margin: 0; }
+input[type=checkbox] { width: 22px; height: 22px; }
+input[type=email], select { width: 100%; min-height: 44px; padding: 8px 10px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+button, a.button { display: inline-block; min-height: 44px; padding: 10px 16px; font: inherit; font-weight: 600; color: var(--accent-text); background: var(--accent); border: 0; border-radius: 6px; cursor: pointer; text-decoration: none; margin: 8px 8px 0 0; }
+button.secondary { color: var(--text); background: transparent; border: 1px solid var(--line); }
+button[disabled] { opacity: 0.55; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); }
+</style>
+</head>
+<body data-mode="{{MODE}}">
+<main id="app" aria-live="polite"></main>
+<script>
+(function () {
+    'use strict';
+
+    var mode = document.body.getAttribute('data-mode');
+    var base = location.pathname.replace(/\/(Me\/Page|Verify|Unsubscribe)\/?$/i, '');
+    var home = base.replace(/\/EmailDigest$/i, '') + '/web/';
+    var supported = ['en', 'es', 'gl'];
+    var app = document.getElementById('app');
+    var strings = {};
+    var lang = initialLanguage();
+    var overview = null;
+    var message = null;
+
+    function initialLanguage() {
+        var l = ((navigator.language || 'en') + '').slice(0, 2).toLowerCase();
+        return supported.indexOf(l) >= 0 ? l : 'en';
+    }
+
+    function t(key) {
+        return typeof strings[key] === 'string' ? strings[key] : key;
+    }
+
+    function fmt(text) {
+        var args = arguments;
+        return text.replace(/\{(\d)\}/g, function (m, i) { return args[+i + 1] !== undefined ? args[+i + 1] : m; });
+    }
+
+    function el(tag, text, cls) {
+        var e = document.createElement(tag);
+        if (text !== undefined && text !== null) { e.textContent = text; }
+        if (cls) { e.className = cls; }
+        return e;
+    }
+
+    function clear(node) {
+        while (node.firstChild) { node.removeChild(node.firstChild); }
+    }
+
+    function norm(value) {
+        if (Array.isArray(value)) { return value.map(norm); }
+        if (value && typeof value === 'object') {
+            var out = {};
+            Object.keys(value).forEach(function (k) { out[k.charAt(0).toLowerCase() + k.slice(1)] = norm(value[k]); });
+            return out;
+        }
+        return value;
+    }
+
+    function when(iso) {
+        if (!iso) { return ''; }
+        var d = new Date(iso);
+        return isNaN(d.getTime()) ? '' : d.toLocaleString(lang);
+    }
+
+    function loadStrings(l) {
+        return fetch(base + '/Strings?language=' + encodeURIComponent(l), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('strings')); })
+            .then(function (j) {
+                // The map's own keys are resource names and must not be re-cased.
+                strings = (j && (j.strings || j.Strings)) || {};
+                lang = l;
+                document.documentElement.setAttribute('lang', l);
+            });
+    }
+
+    function sessionToken() {
+        var raw;
+        try { raw = window.localStorage.getItem('jellyfin_credentials'); } catch (e) { return null; }
+        if (!raw) { return null; }
+        var data;
+        try { data = JSON.parse(raw); } catch (e) { return null; }
+        var servers = (data && data.Servers) || [];
+        var withToken = servers.filter(function (s) { return s && typeof s.AccessToken === 'string' && s.AccessToken.length > 0; });
+        var matching = withToken.filter(function (s) {
+            return [s.ManualAddress, s.LocalAddress, s.RemoteAddress].some(function (a) {
+                try { return !!a && new URL(a).origin === location.origin; } catch (e) { return false; }
+            });
+        });
+        // Only a token that belongs to this server is ever sent here.
+        var chosen = matching.length === 1 ? matching[0] : (matching.length === 0 && withToken.length === 1 ? withToken[0] : null);
+        return chosen ? chosen.AccessToken : null;
+    }
+
+    function api(method, path, body) {
+        var headers = { 'Accept': 'application/json' };
+        var token = sessionToken();
+        // Only the token is sent: anything else would rename this browser's session in Jellyfin's device list.
+        if (token) { headers.Authorization = 'MediaBrowser Token="' + token.replace(/"/g, '') + '"'; }
+        var options = { method: method, headers: headers, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' };
+        if (body !== undefined) {
+            headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(body);
+        }
+
+        return fetch(base + path, options).then(function (r) {
+            return r.text().then(function (text) {
+                var json = null;
+                try { json = text ? norm(JSON.parse(text)) : null; } catch (e) { json = null; }
+                return { status: r.status, body: json, retry: r.headers.get('Retry-After') };
+            });
+        });
+    }
+
+    function show(nodes) {
+        clear(app);
+        nodes.forEach(function (n) { app.appendChild(n); });
+    }
+
+    function simple(titleKey, textKey, cls) {
+        var card = el('div', null, 'card');
+        card.appendChild(el('h1', t(titleKey)));
+        card.appendChild(el('p', t(textKey), cls));
+        return card;
+    }
+
+    // ----- link pages (confirm an address, unsubscribe)
+
+    function linkPage() {
+        var token = new URLSearchParams(location.search).get('token');
+        var verify = mode === 'verify';
+        var prefix = verify ? 'LinkVerify' : 'LinkUnsubscribe';
+        var card = el('div', null, 'card');
+        card.appendChild(el('h1', t(prefix + 'Title')));
+        var status = el('p', null, null);
+        status.setAttribute('role', 'status');
+
+        if (!token) {
+            card.appendChild(el('p', t('LinkNoToken'), 'err'));
+            show([card]);
+            return;
+        }
+
+        card.appendChild(el('p', t(prefix + 'Text')));
+        var button = el('button', t(prefix + 'Button'));
+        button.type = 'button';
+        card.appendChild(button);
+        card.appendChild(status);
+        show([card]);
+
+        button.addEventListener('click', function () {
+            button.disabled = true;
+            status.className = '';
+            status.textContent = t('LinkWorking');
+            fetch(base + (verify ? '/Verify' : '/Unsubscribe') + '?token=' + encodeURIComponent(token), { method: 'POST', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' })
+                .then(function (r) {
+                    if (r.ok) {
+                        status.className = 'ok';
+                        status.textContent = t(prefix + 'Done');
+                        button.hidden = true;
+                        if (verify) {
+                            var open = el('a', t('LinkOpenPreferences'), 'button');
+                            open.href = base + '/Me/Page';
+                            card.appendChild(open);
+                        }
+                    } else {
+                        status.className = 'err';
+                        status.textContent = r.status === 409 ? t('LinkVerifyNotApplied') : (r.status === 400 ? t(prefix + 'Invalid') : t('LinkError'));
+                        button.hidden = true;
+                    }
+                })
+                .catch(function () {
+                    status.className = 'err';
+                    status.textContent = t('LinkError');
+                    button.disabled = false;
+                });
+        });
+    }
+
+    // ----- preferences page
+
+    function signIn() {
+        var card = simple('UserTitle', 'UserSignInRequired');
+        var link = el('a', t('UserBackToJellyfin'), 'button');
+        link.href = home;
+        card.appendChild(link);
+        show([card]);
+    }
+
+    function attemptLabel(value) {
+        if (value === 0 || value === 'Accepted') { return t('UserStatusAccepted'); }
+        if (value === 1 || value === 'Failed') { return t('UserStatusFailed'); }
+        if (value === 2 || value === 'Uncertain') { return t('UserStatusUncertain'); }
+        return '';
+    }
+
+    function setMessage(text, isError) {
+        message = text ? { text: text, error: !!isError } : null;
+    }
+
+    function errorText(response) {
+        var code = response.body && response.body.error;
+        if (response.status === 429) {
+            var seconds = response.body && response.body.retryAfterSeconds ? response.body.retryAfterSeconds : (response.retry || 60);
+            return fmt(t('UserErrRateLimited'), String(seconds));
+        }
+        if (code === 'invalid-address') { return t('UserErrInvalidAddress'); }
+        if (code === 'already-verified') { return t('UserErrAlreadyVerified'); }
+        if (code === 'unavailable') { return t('UserAddressUnavailable'); }
+        if (code === 'send-failed') { return t('UserErrSendFailed'); }
+        if (code === 'invalid-value') { return t('UserErrInvalidValue'); }
+        return t('UserErrGeneric');
+    }
+
+    function render() {
+        var o = overview;
+        var nodes = [];
+        var head = el('div', null, null);
+        head.appendChild(el('h1', t('UserTitle')));
+        head.appendChild(el('p', t('UserIntro'), 'muted'));
+        nodes.push(head);
+
+        if (!o.digestsActive) { nodes.push(el('p', t('UserDigestsNotActive'), 'notice')); }
+
+        var live = el('p', null, null);
+        live.setAttribute('role', 'status');
+        if (message) { live.textContent = message.text; live.className = message.error ? 'err' : 'ok'; }
+        nodes.push(live);
+
+        // notifications
+        var notifications = el('section');
+        notifications.appendChild(el('h2', t('UserSectionNotifications')));
+        var row = el('div', null, 'row');
+        var box = document.createElement('input');
+        box.type = 'checkbox';
+        box.id = 'notify';
+        box.checked = !!o.notificationsEnabled;
+        var boxLabel = el('label', t('UserNotificationsLabel'));
+        boxLabel.setAttribute('for', 'notify');
+        row.appendChild(box);
+        row.appendChild(boxLabel);
+        notifications.appendChild(row);
+        var state = !o.notificationsEnabled ? t('UserNotificationsOff') : (o.addressVerified ? t('UserNotificationsOn') : t('UserNotificationsNeedAddress'));
+        notifications.appendChild(el('p', state, 'muted'));
+        box.addEventListener('change', function () {
+            box.disabled = true;
+            change('PUT', '/Me/Notifications', { enabled: box.checked }, true);
+        });
+        nodes.push(notifications);
+
+        // language
+        var language = el('section');
+        language.appendChild(el('h2', t('UserSectionLanguage')));
+        var langLabel = el('label', t('UserLanguageLabel'));
+        langLabel.setAttribute('for', 'language');
+        var select = document.createElement('select');
+        select.id = 'language';
+        [['en', 'English'], ['es', 'Español'], ['gl', 'Galego']].forEach(function (pair) {
+            var option = el('option', pair[1]);
+            option.value = pair[0];
+            if (pair[0] === o.language) { option.selected = true; }
+            select.appendChild(option);
+        });
+        language.appendChild(langLabel);
+        language.appendChild(select);
+        select.addEventListener('change', function () {
+            select.disabled = true;
+            change('PUT', '/Me/Language', { language: select.value }, true);
+        });
+        nodes.push(language);
+
+        // address
+        var address = el('section');
+        address.appendChild(el('h2', t('UserSectionAddress')));
+        if (!o.address) {
+            address.appendChild(el('p', t('UserAddressNone')));
+        } else if (o.addressVerified) {
+            address.appendChild(el('p', fmt(t('UserAddressVerified'), o.address, when(o.addressVerifiedUtc))));
+        } else {
+            address.appendChild(el('p', fmt(t('UserAddressUnverified'), o.address), 'notice'));
+        }
+
+        if (o.pendingAddress) {
+            address.appendChild(el('p', fmt(t('UserAddressPending'), o.pendingAddress, when(o.pendingExpiresUtc)), 'notice'));
+            var cancel = el('button', t('UserAddressCancel'), 'secondary');
+            cancel.type = 'button';
+            cancel.addEventListener('click', function () {
+                cancel.disabled = true;
+                change('DELETE', '/Me/Address/Pending', undefined, false, t('UserAddressCancelled'));
+            });
+            address.appendChild(cancel);
+        }
+
+        if (!o.verificationAvailable) {
+            address.appendChild(el('p', t('UserAddressUnavailable'), 'muted'));
+        } else {
+            var newLabel = el('label', t('UserAddressNewLabel'));
+            newLabel.setAttribute('for', 'newaddress');
+            var input = document.createElement('input');
+            input.type = 'email';
+            input.id = 'newaddress';
+            input.maxLength = 254;
+            input.autocomplete = 'email';
+            var send = el('button', t('UserAddressSend'));
+            send.type = 'button';
+            send.addEventListener('click', function () {
+                var value = input.value.trim();
+                if (!value) { setMessage(t('UserErrInvalidAddress'), true); render(); return; }
+                send.disabled = true;
+                api('POST', '/Me/Address', { address: value }).then(function (response) {
+                    if (response.status === 202) {
+                        setMessage(response.body && response.body.status === 'uncertain' ? t('UserAddressSentUncertain') : t('UserAddressSent'), false);
+                        return refresh();
+                    }
+                    setMessage(errorText(response), true);
+                    render();
+                }).catch(function () { setMessage(t('UserErrGeneric'), true); render(); });
+            });
+            address.appendChild(newLabel);
+            address.appendChild(input);
+            address.appendChild(send);
+        }
+        nodes.push(address);
+
+        // status
+        var status = el('section');
+        status.appendChild(el('h2', t('UserSectionStatus')));
+        status.appendChild(el('p', o.lastAcceptedUtc ? fmt(t('UserStatusLastAccepted'), when(o.lastAcceptedUtc)) : t('UserStatusNever')));
+        var attempt = attemptLabel(o.lastAttemptStatus);
+        if (o.lastAttemptUtc && attempt) { status.appendChild(el('p', fmt(t('UserStatusLastAttempt'), when(o.lastAttemptUtc) + ' - ' + attempt))); }
+        status.appendChild(el('p', o.nextRunUtc ? fmt(t('UserStatusNextRun'), when(o.nextRunUtc)) : t('UserStatusNextUnknown')));
+        status.appendChild(el('p', t('UserStatusDisclaimer'), 'muted'));
+        nodes.push(status);
+
+        nodes.push(el('p', t('UserHelp'), 'muted'));
+        var back = el('a', t('UserBackToJellyfin'), 'button secondary');
+        back.href = home;
+        nodes.push(back);
+
+        show(nodes);
+    }
+
+    function change(method, path, body, reloadStrings, successText) {
+        return api(method, path, body).then(function (response) {
+            if (response.status === 200 && response.body) {
+                overview = response.body;
+                setMessage(successText || t('UserSaved'), false);
+                if (reloadStrings && overview.language && overview.language !== lang && supported.indexOf(overview.language) >= 0) {
+                    return loadStrings(overview.language).then(function () { setMessage(t('UserSaved'), false); render(); });
+                }
+                render();
+                return null;
+            }
+            setMessage(errorText(response), true);
+            render();
+            return null;
+        }).catch(function () { setMessage(t('UserErrGeneric'), true); render(); });
+    }
+
+    function refresh() {
+        return api('GET', '/Me').then(function (response) {
+            if (response.status === 200 && response.body) { overview = response.body; }
+            render();
+        });
+    }
+
+    function preferencesPage() {
+        if (!sessionToken()) { signIn(); return; }
+        show([simple('UserTitle', 'UserLoading', 'muted')]);
+        api('GET', '/Me').then(function (response) {
+            if (response.status === 401) { signIn(); return null; }
+            if (response.status === 403) { show([simple('UserTitle', 'UserForbidden', 'err')]); return null; }
+            if (response.status !== 200 || !response.body) { show([simple('UserTitle', 'UserLoadError', 'err')]); return null; }
+            overview = response.body;
+            if (overview.language && overview.language !== lang && supported.indexOf(overview.language) >= 0) {
+                return loadStrings(overview.language).then(render);
+            }
+            render();
+            return null;
+        }).catch(function () { show([simple('UserTitle', 'UserLoadError', 'err')]); });
+    }
+
+    loadStrings(lang).then(function () {
+        if (mode === 'me') { preferencesPage(); } else { linkPage(); }
+    }).catch(function () {
+        clear(app);
+        app.appendChild(el('p', 'Email Digest: the page could not be loaded.'));
+    });
+}());
+</script>
+</body>
+</html>
