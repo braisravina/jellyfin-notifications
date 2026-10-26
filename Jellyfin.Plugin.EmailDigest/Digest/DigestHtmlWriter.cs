@@ -85,6 +85,11 @@ internal static class DigestHtmlWriter
 
         html.Append("<hr style=\"border:0;border-top:1px solid #d9dde3;margin:24px 0 12px 0;\">\n");
         html.Append("<p style=\"margin:0;font-size:12px;color:#7b8794;\">").Append(Encode(view.Footer)).Append("</p>\n");
+        foreach (var link in view.Links)
+        {
+            html.Append("<p style=\"margin:4px 0 0 0;font-size:12px;color:#7b8794;\"><a href=\"").Append(Encode(link.Url)).Append("\" style=\"color:#7b8794;\">").Append(Encode(link.Label)).Append("</a></p>\n");
+        }
+
         html.Append("</td></tr>\n</table>\n</td></tr>\n</table>\n</body>\n</html>\n");
         return html.ToString();
     }

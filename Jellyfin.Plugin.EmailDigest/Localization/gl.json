@@ -144,5 +144,10 @@
   "VerifyButton": "Confirmar este enderezo",
   "VerifyExpires": "A ligazón funciona unha soa vez e caduca o {0} UTC.",
   "VerifyIgnore": "Se non o pediches ti, ignora esta mensaxe. Non se enviará nada a este enderezo e non cambiará nada.",
-  "VerifyFooter": "Esta é unha mensaxe automática. Non contén información sobre ningún contido multimedia."
+  "VerifyFooter": "Esta é unha mensaxe automática. Non contén información sobre ningún contido multimedia.",
+  "FooterManage": "Xestiona as túas notificacións",
+  "FooterUnsubscribe": "Darse de baixa destes correos",
+  "AdminReasonPublicUrlMissing": "Non está configurado o enderezo público do servidor, así que un resumo non pode levar a súa ligazón de baixa. Indícao nos axustes.",
+  "AdminReasonPreferencesUnreadable": "Non se pode confiar no ficheiro de preferencias de usuarios. Consulta a documentación para recuperalo.",
+  "AdminReasonUnsubscribeUnavailable": "Non se pode usar a chave de baixa, así que non se enviou nada. Consulta a documentación."
 }

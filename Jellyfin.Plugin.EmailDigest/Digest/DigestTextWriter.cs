@@ -60,6 +60,11 @@ internal static class DigestTextWriter
         }
 
         text.Append("\n--\n").Append(view.Footer).Append('\n');
+        foreach (var link in view.Links)
+        {
+            text.Append(link.Label).Append(": ").Append(link.Url).Append('\n');
+        }
+
         return text.ToString();
     }
 }

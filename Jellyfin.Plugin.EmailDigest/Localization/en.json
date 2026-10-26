@@ -144,5 +144,10 @@
   "VerifyButton": "Confirm this address",
   "VerifyExpires": "The link works once and expires on {0} UTC.",
   "VerifyIgnore": "If you did not ask for this, ignore this message. Nothing will be sent to this address and nothing will change.",
-  "VerifyFooter": "This is an automated message. It contains no information about any media."
+  "VerifyFooter": "This is an automated message. It contains no information about any media.",
+  "FooterManage": "Manage your notifications",
+  "FooterUnsubscribe": "Unsubscribe from these emails",
+  "AdminReasonPublicUrlMissing": "The public server address is not set, so a digest cannot carry its unsubscribe link. Set it in the settings.",
+  "AdminReasonPreferencesUnreadable": "The user preferences file cannot be trusted. See the documentation to recover it.",
+  "AdminReasonUnsubscribeUnavailable": "The unsubscribe key cannot be used, so nothing was sent. See the documentation."
 }

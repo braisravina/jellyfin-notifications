@@ -80,6 +80,19 @@ public sealed class UnsubscribeTokenServiceTests : IDisposable
     }
 
     [Fact]
+    public void NonCanonicalSpelling_OfAValidToken_IsRejected()
+    {
+        var token = _tokens.Create(Guid.NewGuid());
+        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+        // The last character carries only 4 meaningful bits; every other spelling of those bits is refused.
+        var variants = alphabet.Select(c => token[..^1] + c).Where(v => v != token).ToList();
+
+        Assert.All(variants, v => Assert.Null(_tokens.TryRead(v)));
+        Assert.NotNull(_tokens.TryRead(token));
+    }
+
+    [Fact]
     public void TokenFromAnotherServersKey_IsRejected()
     {
         var other = new UnsubscribeTokenService(Path.Combine(_folder, "other"));

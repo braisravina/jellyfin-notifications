@@ -10,6 +10,7 @@ using Jellyfin.Plugin.EmailDigest.Email;
 using Jellyfin.Plugin.EmailDigest.Localization;
 using Jellyfin.Plugin.EmailDigest.Models;
 using Jellyfin.Plugin.EmailDigest.Services;
+using Jellyfin.Plugin.EmailDigest.Subscription;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.EmailDigest.Delivery;
@@ -52,6 +53,8 @@ public sealed class DigestRunner
     private readonly IEmailTransport _transport;
     private readonly ISmtpPasswordStore _passwords;
     private readonly IDeliveryStateStore _state;
+    private readonly IDeliveryStatusStore _status;
+    private readonly IUnsubscribeTokens _unsubscribe;
     private readonly IRunSummaryStore _summaries;
     private readonly IDigestRunLock _lock;
     private readonly DigestRetryPolicy _retry;
@@ -71,6 +74,8 @@ public sealed class DigestRunner
     /// <param name="transport">The SMTP transport.</param>
     /// <param name="passwords">The SMTP password store.</param>
     /// <param name="state">Per-user delivery state.</param>
+    /// <param name="status">Per-user delivery status, kept for the user's own page.</param>
+    /// <param name="unsubscribe">The unsubscribe tokens placed in every digest.</param>
     /// <param name="summaries">The last-run summary store.</param>
     /// <param name="runLock">The run lock.</param>
     /// <param name="retry">The retry policy.</param>
@@ -87,6 +92,8 @@ public sealed class DigestRunner
         IEmailTransport transport,
         ISmtpPasswordStore passwords,
         IDeliveryStateStore state,
+        IDeliveryStatusStore status,
+        IUnsubscribeTokens unsubscribe,
         IRunSummaryStore summaries,
         IDigestRunLock runLock,
         DigestRetryPolicy retry,
@@ -103,6 +110,8 @@ public sealed class DigestRunner
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _passwords = passwords ?? throw new ArgumentNullException(nameof(passwords));
         _state = state ?? throw new ArgumentNullException(nameof(state));
+        _status = status ?? throw new ArgumentNullException(nameof(status));
+        _unsubscribe = unsubscribe ?? throw new ArgumentNullException(nameof(unsubscribe));
         _summaries = summaries ?? throw new ArgumentNullException(nameof(summaries));
         _lock = runLock ?? throw new ArgumentNullException(nameof(runLock));
         _retry = retry ?? throw new ArgumentNullException(nameof(retry));
@@ -217,6 +226,24 @@ public sealed class DigestRunner
             {
                 _logger.LogError("SMTP delivery is not enabled; a live run cannot send. Enable SMTP or use dry run.");
                 return await FinishAsync(summary, DigestRunOutcome.Aborted, "smtp-disabled").ConfigureAwait(false);
+            }
+
+            // Every digest carries an unsubscribe link built from the configured public address; without
+            // one, or without a usable key, nothing is sent.
+            if (PublicBaseUrl.TryNormalize(config.PublicBaseUrl) is null)
+            {
+                _logger.LogError("The public server address is not set; a live run cannot add unsubscribe links, so nothing was sent.");
+                return await FinishAsync(summary, DigestRunOutcome.Aborted, "public-url-missing").ConfigureAwait(false);
+            }
+
+            try
+            {
+                _ = _unsubscribe.Create(Guid.NewGuid());
+            }
+            catch (UnsubscribeTokenException)
+            {
+                _logger.LogError("The unsubscribe key cannot be used; nothing was sent.");
+                return await FinishAsync(summary, DigestRunOutcome.Aborted, "unsubscribe-unavailable").ConfigureAwait(false);
             }
 
             var password = await _passwords.ReadAsync(cancellationToken).ConfigureAwait(false);
@@ -363,6 +390,7 @@ public sealed class DigestRunner
         catch (MediaDiscoveryException)
         {
             _logger.LogWarning("Discovery failed for a user; their checkpoint was not changed.");
+            await RecordStatusAsync(live, userId, DeliveryAttemptStatus.Failed).ConfigureAwait(false);
             return UserResult.Failed;
         }
 
@@ -387,11 +415,12 @@ public sealed class DigestRunner
         try
         {
             model = _builder.Build(pending, DigestOptions.From(config));
-            rendered = _renderer.Render(model, new DigestRecipient(user.DisplayName, language));
+            rendered = _renderer.Render(model, Recipient(config, live, userId, user.DisplayName, language));
         }
         catch (Exception ex) when (ex is DigestRenderException or ArgumentException or InvalidOperationException)
         {
             _logger.LogError("A digest could not be built or rendered ({ExceptionType}); nothing was sent.", ex.GetType().Name);
+            await RecordStatusAsync(live, userId, DeliveryAttemptStatus.Failed).ConfigureAwait(false);
             return UserResult.Failed;
         }
 
@@ -402,28 +431,67 @@ public sealed class DigestRunner
         }
 
         var shown = model.Sections.SelectMany(section => section.Entries).SelectMany(entry => entry.ItemIds).ToHashSet();
-        var email = new OutgoingEmail(
-            preference.Email,
-            user.DisplayName,
-            rendered.Subject,
-            rendered.TextBody,
-            rendered.HtmlBody,
-            DigestMessageId.Create(userId, window, shown));
+        var messageId = DigestMessageId.Create(userId, window, shown);
+        var renderedLanguage = language;
+        var unsubscribeUrl = UnsubscribeUrl(config, userId);
 
-        var delivery = await SendWithRetryAsync(smtp!, email, cancellationToken).ConfigureAwait(false);
+        // Called immediately before every attempt, so a subscription turned off, an address that is no
+        // longer verified, an account removed or a changed address or language is honoured right up to
+        // the moment the message is handed to SMTP. Returns null to send nothing.
+        async Task<OutgoingEmail?> PrepareAsync(CancellationToken token)
+        {
+            var currentUser = _users.Find(userId);
+            if (currentUser is null || currentUser.IsDisabled)
+            {
+                return null;
+            }
+
+            UserNotificationPreferences? current;
+            try
+            {
+                current = await _preferences.GetAsync(userId, token).ConfigureAwait(false);
+            }
+            catch (UserPreferencesException)
+            {
+                return null;
+            }
+
+            if (current is null || !current.CanReceiveDigest())
+            {
+                return null;
+            }
+
+            var currentLanguage = SupportedLanguages.IsSupported(current.Language) ? current.Language : config.DefaultLanguage;
+            if (!string.Equals(currentLanguage, renderedLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                rendered = _renderer.Render(model, Recipient(config, live, userId, currentUser.DisplayName, currentLanguage));
+                renderedLanguage = currentLanguage;
+            }
+
+            return new OutgoingEmail(current.Email, currentUser.DisplayName, rendered.Subject, rendered.TextBody, rendered.HtmlBody, messageId, unsubscribeUrl);
+        }
+
+        var delivery = await SendWithRetryAsync(smtp!, PrepareAsync, cancellationToken).ConfigureAwait(false);
         switch (delivery)
         {
             case DeliveryFailureKind.Accepted:
+                await RecordStatusAsync(live, userId, DeliveryAttemptStatus.Accepted).ConfigureAwait(false);
                 break;
+            case DeliveryFailureKind.Withdrawn:
+                _logger.LogInformation("A user's digest was not sent: their notifications were turned off or their address changed before sending. Their checkpoint was not changed.");
+                return UserResult.Skipped;
             case DeliveryFailureKind.StopRun:
+                await RecordStatusAsync(live, userId, DeliveryAttemptStatus.Failed).ConfigureAwait(false);
                 return UserResult.StopRun;
             case DeliveryFailureKind.Uncertain:
                 _logger.LogWarning("Delivery to a user is uncertain; their checkpoint was not changed and a later run may resend (possible duplicate).");
+                await RecordStatusAsync(live, userId, DeliveryAttemptStatus.Uncertain).ConfigureAwait(false);
                 return UserResult.Uncertain;
             case DeliveryFailureKind.Cancelled:
                 cancellationToken.ThrowIfCancellationRequested();
                 return UserResult.Failed;
             default:
+                await RecordStatusAsync(live, userId, DeliveryAttemptStatus.Failed).ConfigureAwait(false);
                 return UserResult.Failed;
         }
 
@@ -464,11 +532,17 @@ public sealed class DigestRunner
         }
     }
 
-    private async Task<DeliveryFailureKind> SendWithRetryAsync(SmtpSettings smtp, OutgoingEmail email, CancellationToken cancellationToken)
+    private async Task<DeliveryFailureKind> SendWithRetryAsync(SmtpSettings smtp, Func<CancellationToken, Task<OutgoingEmail?>> prepare, CancellationToken cancellationToken)
     {
         var kind = DeliveryFailureKind.Transient;
         for (var attempt = 1; attempt <= _retry.MaxAttempts; attempt++)
         {
+            var email = await prepare(cancellationToken).ConfigureAwait(false);
+            if (email is null)
+            {
+                return DeliveryFailureKind.Withdrawn;
+            }
+
             var attemptId = Guid.NewGuid().ToString("N");
             var result = await _transport.SendAsync(smtp, email, cancellationToken).ConfigureAwait(false);
             kind = DeliveryFailureClassifier.Classify(result);
@@ -483,6 +557,36 @@ public sealed class DigestRunner
         }
 
         return kind;
+    }
+
+    private DigestRecipient Recipient(PluginConfiguration config, bool live, Guid userId, string displayName, string language)
+    {
+        return live
+            ? new DigestRecipient(displayName, language, UnsubscribeUrl(config, userId), PublicBaseUrl.Link(config.PublicBaseUrl, PublicBaseUrl.PreferencesPath))
+            : new DigestRecipient(displayName, language);
+    }
+
+    private string? UnsubscribeUrl(PluginConfiguration config, Guid userId)
+    {
+        return PublicBaseUrl.Link(config.PublicBaseUrl, PublicBaseUrl.UnsubscribePath, _unsubscribe.Create(userId));
+    }
+
+    // The status is for the user's own page only. Failing to save it is logged and never changes what is sent.
+    private async Task RecordStatusAsync(bool live, Guid userId, DeliveryAttemptStatus status)
+    {
+        if (!live)
+        {
+            return;
+        }
+
+        try
+        {
+            await _status.RecordAttemptAsync(userId, status, _time.GetUtcNow(), CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning("A user's delivery status could not be saved ({ExceptionType}).", ex.GetType().Name);
+        }
     }
 
     private async Task<DigestRunSummary> FinishAsync(DigestRunSummary summary, DigestRunOutcome outcome, string reason, bool persist = true)

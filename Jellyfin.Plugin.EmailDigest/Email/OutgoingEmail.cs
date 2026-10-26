@@ -17,10 +17,16 @@ namespace Jellyfin.Plugin.EmailDigest.Email;
 /// 128 characters). When the same digest is sent again it carries the same id, which helps diagnosis
 /// and lets some mail clients or providers recognise a repeat, but nothing assumes they do.
 /// </param>
+/// <param name="UnsubscribeUrl">
+/// An optional absolute http(s) link that turns this recipient's digests off. When present the message
+/// carries the standard <c>List-Unsubscribe</c> and <c>List-Unsubscribe-Post</c> (one-click, RFC 8058)
+/// headers so mail clients can offer an unsubscribe button.
+/// </param>
 public sealed record OutgoingEmail(
     string RecipientAddress,
     string? RecipientName,
     string Subject,
     string TextBody,
     string HtmlBody,
-    string? MessageIdLocalPart = null);
+    string? MessageIdLocalPart = null,
+    string? UnsubscribeUrl = null);

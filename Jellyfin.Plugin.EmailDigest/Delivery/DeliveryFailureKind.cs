@@ -34,5 +34,10 @@ public enum DeliveryFailureKind
     /// <summary>
     /// The caller cancelled.
     /// </summary>
-    Cancelled = 5
+    Cancelled = 5,
+
+    /// <summary>
+    /// Nothing was sent: the user's preferences changed, so they no longer receive digests.
+    /// </summary>
+    Withdrawn = 6
 }

@@ -42,7 +42,8 @@ internal sealed class RunnerHarness : IDisposable
             SmtpSecurity = SmtpSecurityMode.StartTls,
             SenderEmailAddress = "digest@example.com",
             DefaultLanguage = "en",
-            FallbackLookbackHours = 168
+            FallbackLookbackHours = 168,
+            PublicBaseUrl = "https://jellyfin.example.org"
         };
         Config.MonitoredLibraries.Add(new MonitoredLibrary { LibraryId = Library, Category = MediaCategory.Movies });
 
@@ -51,6 +52,8 @@ internal sealed class RunnerHarness : IDisposable
         InnerState = new DeliveryStateStore(_root, Time);
         State = InnerState;
         Summaries = new RunSummaryStore(_root);
+        Status = new DeliveryStatusStore(_root);
+        Unsubscribe = new Jellyfin.Plugin.EmailDigest.Subscription.UnsubscribeTokenService(_root);
         Lock = new FileDigestRunLock(_root);
         Validator.Setup(v => v.Validate(It.IsAny<IReadOnlyList<MonitoredLibrary>>())).Returns(Array.Empty<MonitoredLibraryIssue>());
     }
@@ -72,6 +75,10 @@ internal sealed class RunnerHarness : IDisposable
     public IDeliveryStateStore State { get; set; }
 
     public RunSummaryStore Summaries { get; }
+
+    public IDeliveryStatusStore Status { get; set; }
+
+    public Jellyfin.Plugin.EmailDigest.Subscription.IUnsubscribeTokens Unsubscribe { get; }
 
     public IDigestRunLock Lock { get; set; }
 
@@ -107,6 +114,8 @@ internal sealed class RunnerHarness : IDisposable
             Transport,
             Passwords,
             State,
+            Status,
+            Unsubscribe,
             Summaries,
             Lock,
             Retry,

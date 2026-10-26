@@ -55,6 +55,7 @@ public sealed class DigestRenderer : IDigestRenderer
         var text = new DigestText(_localization, recipient.Language);
         var name = DigestSanitizer.Clean(recipient.DisplayName);
         var greeting = name.Length > 0 ? text.Format("Greeting", name) : text.Format("GreetingNoName");
+        var links = BuildLinks(text, recipient);
 
         if (model.IsEmpty)
         {
@@ -66,7 +67,8 @@ public sealed class DigestRenderer : IDigestRenderer
                 Array.Empty<DigestViewSection>(),
                 text.Format("EmptyDigest"),
                 null,
-                text.Format("Footer"));
+                text.Format("Footer"),
+                links);
         }
 
         return new DigestView(
@@ -77,7 +79,34 @@ public sealed class DigestRenderer : IDigestRenderer
             model.Sections.Select(section => BuildSection(section, text, model.EpisodeListLimit)).ToList(),
             null,
             model.HasHiddenEntries ? text.Format("ContinuationNote") : null,
-            text.Format("Footer"));
+            text.Format("Footer"),
+            links);
+    }
+
+    private static List<DigestViewLink> BuildLinks(DigestText text, DigestRecipient recipient)
+    {
+        var links = new List<DigestViewLink>();
+        if (IsSafeLink(recipient.PreferencesUrl))
+        {
+            links.Add(new DigestViewLink(text.Format("FooterManage"), recipient.PreferencesUrl!));
+        }
+
+        if (IsSafeLink(recipient.UnsubscribeUrl))
+        {
+            links.Add(new DigestViewLink(text.Format("FooterUnsubscribe"), recipient.UnsubscribeUrl!));
+        }
+
+        return links;
+    }
+
+    // Only an absolute http(s) address on a single line is ever put in a message.
+    private static bool IsSafeLink(string? url)
+    {
+        return !string.IsNullOrEmpty(url)
+               && url.Length <= 600
+               && !url.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || c is '"' or '<' or '>')
+               && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+               && uri.Scheme is "http" or "https";
     }
 
     private static DigestViewSection BuildSection(DigestSection section, DigestText text, int episodeLimit)

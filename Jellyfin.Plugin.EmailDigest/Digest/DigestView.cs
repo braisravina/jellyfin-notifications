@@ -13,6 +13,7 @@ namespace Jellyfin.Plugin.EmailDigest.Digest;
 /// <param name="EmptyMessage">The "nothing new" message, or null when there is content.</param>
 /// <param name="ContinuationNote">A note that hidden items follow in the next digest, or null.</param>
 /// <param name="Footer">The footer line.</param>
+/// <param name="Links">The footer links (preferences, unsubscribe), possibly empty.</param>
 internal sealed record DigestView(
     string Language,
     string Subject,
@@ -21,4 +22,5 @@ internal sealed record DigestView(
     IReadOnlyList<DigestViewSection> Sections,
     string? EmptyMessage,
     string? ContinuationNote,
-    string Footer);
+    string Footer,
+    IReadOnlyList<DigestViewLink> Links);

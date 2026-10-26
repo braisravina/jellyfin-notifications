@@ -62,6 +62,8 @@ public class ServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<IEmailTransport>(),
             provider.GetRequiredService<ISmtpPasswordStore>(),
             provider.GetRequiredService<IDeliveryStateStore>(),
+            provider.GetRequiredService<IDeliveryStatusStore>(),
+            provider.GetRequiredService<IUnsubscribeTokens>(),
             provider.GetRequiredService<IRunSummaryStore>(),
             provider.GetRequiredService<IDigestRunLock>(),
             DigestRetryPolicy.Default,

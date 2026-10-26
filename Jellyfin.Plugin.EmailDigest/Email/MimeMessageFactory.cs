@@ -57,6 +57,17 @@ public static class MimeMessageFactory
         // Tells well-behaved auto-responders (out-of-office, vacation) not to answer a robot.
         message.Headers.Add("Auto-Submitted", "auto-generated");
 
+        if (email.UnsubscribeUrl is not null)
+        {
+            if (!IsSafeUnsubscribeUrl(email.UnsubscribeUrl))
+            {
+                throw new ArgumentException("The unsubscribe link is invalid.", nameof(email));
+            }
+
+            message.Headers.Add("List-Unsubscribe", "<" + email.UnsubscribeUrl + ">");
+            message.Headers.Add("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+        }
+
         var text = new TextPart(TextFormat.Plain) { Text = email.TextBody };
         text.ContentType.Charset = "utf-8";
         var html = new TextPart(TextFormat.Html) { Text = email.HtmlBody };
@@ -88,6 +99,15 @@ public static class MimeMessageFactory
     private static bool IsValidMessageIdPart(string value)
     {
         return value.Length is >= 8 and <= 128 && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_');
+    }
+
+    // The value goes inside <...> in a header, so it must be a plain absolute http(s) address.
+    private static bool IsSafeUnsubscribeUrl(string url)
+    {
+        return url.Length <= 600
+               && !url.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || c is '<' or '>' or '"' or ',')
+               && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+               && uri.Scheme is "http" or "https";
     }
 
     private static bool HasLineBreak(string value)

@@ -105,7 +105,10 @@ public sealed class UnsubscribeTokenService : IUnsubscribeTokens
         padded = padded.PadRight(padded.Length + ((4 - (padded.Length % 4)) % 4), '=');
         try
         {
-            return Convert.FromBase64String(padded);
+            // Only the canonical spelling is accepted, so one value has exactly one valid token string
+            // (base64 leaves spare bits in the last character that would otherwise decode the same).
+            var bytes = Convert.FromBase64String(padded);
+            return string.Equals(Encode(bytes), value, StringComparison.Ordinal) ? bytes : null;
         }
         catch (FormatException)
         {
