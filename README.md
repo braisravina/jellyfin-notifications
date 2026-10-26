@@ -6,11 +6,17 @@ user, filtered strictly by what that user is authorized to see in Jellyfin.
 Replaces a standalone notifier (Docker container + JSON user mappings + cron/systemd
 timer + separate web UI) with a native Jellyfin plugin.
 
-**Status: Phase 6 (scheduled digest orchestration) implemented and unit-tested; not
-live-verified.** The scheduled task now discovers, builds, renders and sends a digest per user and
-records confirmed deliveries. **Nothing is sent after installing or upgrading**: the digest is
-disabled, dry run is on and SMTP is off by default, and no user has notification preferences until
-the Phase 7 page exists. See "Scheduled digest" for the guarantees and their limits.
+**Status: Phase 7 (user self-service and email verification) implemented and unit-tested; not
+live-verified.** Users confirm their own email address, turn digests on or off, choose a language and stop
+emails with a link; the scheduled task sends only to verified addresses and rechecks each user's choices
+immediately before sending. **Nothing is sent after installing or upgrading**: the digest is disabled, dry
+run is on, SMTP is off, there is no public server address, and no address is verified. Real sending needs the
+administrator steps in `docs/administrator-guide.md` and, before that, the disposable test in
+`docs/phase7-live-verification.md`.
+
+Documents: [user guide](docs/user-guide.md), [administrator guide](docs/administrator-guide.md)
+(settings, files, recovery, upgrade and rollback), [security considerations](docs/security.md),
+[Phase 7 preflight](docs/phase7-preflight.md), and the live-verification procedures in `docs/`.
 
 ## Media discovery
 
@@ -238,10 +244,11 @@ safeguards.
 | Enable digest emails | off | While off the task does nothing at all (no discovery, no mail, no state) |
 | Dry run | **on** | A run builds and renders each user's digest and logs counts, but sends nothing and records nothing |
 | Enable SMTP | off | A live run aborts if SMTP is not enabled |
+| Public server address | empty | A live run aborts without it: every digest carries an unsubscribe link built from it |
 
 Nothing is enabled by installing or upgrading. To send for real an administrator must enable SMTP,
 choose the monitored libraries, enable the digest and turn dry run off. Users must also have
-preferences (email address, language, notifications on); Phase 7 adds the page for users to set them.
+a verified email address and notifications on, which they set themselves on their preferences page (below).
 The plugin page's Status section shows the mode and the last run.
 
 ### What one run does
@@ -253,11 +260,13 @@ The plugin page's Status section shows the mode and the last run.
    invalid or deleted or cannot be verified, SMTP is disabled or the login has no password (live runs),
    or the delivery state file cannot be trusted. No monitored libraries is a skip, never
    "monitor everything".
-4. For each user with notifications on, in id order: skip unknown or disabled Jellyfin accounts and
-   invalid stored addresses (their state is untouched); choose the user's language (else the default);
+4. For each user with notifications on **and a verified address**, in id order: skip unknown or disabled
+   Jellyfin accounts and invalid stored addresses (their state is untouched); choose the user's language (else the default);
    work out their window; discover media **as that user** (Jellyfin's own permissions); drop items
    already delivered; build and render the digest; send **one** message to that user; and only after the
-   SMTP server accepts it, record that user's delivery. If nothing is new, no email is sent and the
+   SMTP server accepts it, record that user's delivery. Immediately before every SMTP attempt (retries too) the
+   user's account, notifications and verified address are read again; if any changed so that they no longer
+   qualify, nothing is sent and their checkpoint stays, and a changed language or verified address is used. If nothing is new, no email is sent and the
    checkpoint moves to the end of the examined window.
 
 ### Per-user checkpoints and baselines
@@ -303,8 +312,10 @@ in the new folder is never overwritten. If the copy cannot be completed the plug
 (it never starts from empty state). **Downgrade:** the old folder still holds the state as it was at the upgrade,
 so an older version starts from that (changes made after the upgrade are in the new folder only). **Upgrading
 again** keeps the new folder and does not re-import the older copy. Files: `delivery-state.json` (+ `.bak`),
-`checkpoint.json` (legacy hint, read only), `last-run.json`, `user-preferences.json`, `smtp-password.secret`;
-`digest-run.lock` is created fresh. New files are created readable by the server's account only.
+`checkpoint.json` (legacy hint, read only), `last-run.json`, `user-preferences.json` (+ `.bak`, `.v1.bak`),
+`smtp-password.secret`; `digest-run.lock` is created fresh. Phase 7 adds `delivery-status.json`,
+`verification-requests.json`, `unsubscribe.key` and `storage-migration.json` (see
+`docs/administrator-guide.md`). New files are created readable by the server's account only.
 
 ### Failures, retries and uncertainty
 
@@ -341,24 +352,43 @@ ids, titles or content). A run with any failed or uncertain user, or one that st
 `CompletedWithFailures` or `Aborted`, is logged as a warning, and makes the scheduled task **fail** in Jellyfin's
 task list (the message holds counts and a reason code only). It is never shown as a plain success.
 
-### Known limitations of Phase 6
+### Known limitations
 
-- Not live-verified; see `docs/phase6-live-verification.md`.
-- No user can set preferences until Phase 7, so no real digest can be delivered until preferences are seeded by
-  hand or the Phase 7 page exists.
+- Not live-verified; see `docs/phase6-live-verification.md` and `docs/phase7-live-verification.md`.
 - At-least-once delivery (above), and a 5-minute settle margin means media appears in the next run after it.
 - The deleted-library check aborts the whole run; fix the monitored libraries to resume.
 - Jellyfin's task list shows a failed task but not the per-user breakdown; use the log and the Status section.
 - A paused user is caught up at most 30 days.
 - Delivery state for users deleted from Jellyfin is kept (it is small).
+- A change made in the milliseconds between the last recheck and SMTP accepting a message can still produce
+  one email.
 
-### Phase 7 prerequisites
+## Notification preferences and address verification (Phase 7)
 
-- A user-facing page (or API) to set email, language and notifications, authenticated as that user and able to
-  change only their own preferences. The runner reads `user-preferences.json` and writes nothing to it.
-- Decide how an address is verified, since a typo or a hostile address sends mail to a third party.
-- A way for a user to see or reset their own delivery status if wanted.
-- Unsubscribe handling: the digest currently has no link, by design (no tokens in URLs).
+Users manage their own digests on a page served by the plugin at `/EmailDigest/Me/Page` (Jellyfin keeps plugin
+pages behind an administrator check, so the standard plugin page cannot be used by ordinary users). Links to it
+are in every digest. The page reads the user's own Jellyfin session and calls the authenticated API
+`/EmailDigest/Me`; it never asks for a password. Users can: turn digests on or off, choose English, Spanish or
+Galician, see their address and whether it is confirmed, ask to change it, and see when a digest was last
+accepted by the mail server, the last attempt, and the next scheduled run. They cannot reach SMTP settings,
+monitored libraries, other users' data or checkpoints.
+
+- **Verification.** A new or changed address is used only after its owner opens a one-time link sent to it. The
+  link is 256 random bits, stored only as a hash, single use, expiring (5-1440 minutes, default 60) and replaced
+  by any newer request; requests are rate limited per user, per address and overall. The current verified
+  address stays in use until the replacement is confirmed. The email contains no media information. Records
+  written by hand or by an earlier version count as unverified.
+- **Unsubscribe.** Every digest has an "Unsubscribe" link and the `List-Unsubscribe` / one-click headers. The link
+  carries an HMAC token for that user, shows a page, and acts only when its button is pressed (so mail scanners
+  change nothing). It turns off that user's notifications and nothing else: not their account, address or history.
+- **Public address.** Links in emails are built from an administrator-set public server address, never from a
+  request's headers.
+- **Delivery status** is informational and kept apart from the delivery state, so a failure cannot corrupt a
+  baseline. SMTP acceptance is never described as arrival in an inbox.
+- **API** (all JSON, `Authorization: MediaBrowser Token="..."`): `GET /EmailDigest/Me`, `PUT .../Notifications`,
+  `PUT .../Language`, `POST .../Address`, `DELETE .../Address/Pending`; anonymous: the four page GETs and
+  `POST /EmailDigest/Verify?token=` and `POST /EmailDigest/Unsubscribe?token=`. Details and the threat model:
+  `docs/security.md`.
 
 ## Persistence and secrets
 
@@ -388,8 +418,11 @@ task list (the message holds counts and a reason code only). It is never shown a
 5. Secure SMTP delivery — implemented and unit-tested (386 tests, including a local fake SMTP
    server); **not live-verified**. Sends nothing except an administrator-requested test message.
 6. Scheduled digest orchestration — implemented and unit-tested (588 tests); **not live-verified**.
-   Disabled and dry-run by default; no preferences exist until Phase 7.
-7. User self-service — not started.
+   Disabled and dry-run by default.
+7. User self-service and email verification — implemented and unit-tested (977 tests, including a four-user
+   journey and tests that send real requests through the ASP.NET Core pipeline); **not live-verified**. State
+   moved to the server data directory; per-user preferences page; one-time address verification; unsubscribe
+   links and headers; personal delivery status; the runner honours verified addresses and rechecks before SMTP.
 8. Packaging — not started.
 
 ## Compatibility
@@ -430,6 +463,18 @@ plugin logic in isolation (config validation, per-user preference storage, check
 storage, localization, media discovery, library validation, digest building and rendering,
 SMTP transport and the administrator API) using temp-directory-backed
 fakes, mocked Jellyfin interfaces and in-process instances.
+
+Phase 7 adds tests for: the state move (copy-only migration, interruption, downgrade and re-upgrade, permissions);
+the preferences file formats and damage handling; verification tokens (hashing, expiry, single use, replay,
+supersession, concurrency, every rate limit, persistence across restart); the unsubscribe tokens; the subscription
+service; the runner's rechecks before SMTP and the unsubscribe links and headers; the status store and next-run
+calculation; and the user and administrator HTTP surface through the real ASP.NET Core pipeline (anonymous, user,
+administrator, API key, spoofed ids, cookies, CSRF content types, rate limiting, security headers, a structural
+guard on every controller). The user page is covered by static rules (no unsafe APIs, token-only header, strict
+Content-Security-Policy whose hashes match the served page) and was also exercised in a real browser against a
+stub server. A four-user test (administrator, full access, one library, never confirms) walks the whole journey with
+synthetic data. None of this proves Jellyfin's own authentication behaviour; `docs/phase7-live-verification.md`
+does.
 
 Phase 6 adds tests for the digest runner against real storage in a temporary folder with fakes for
 Jellyfin and the network (nothing is sent): per-user checkpoints, baselines, retries and failure
@@ -473,9 +518,11 @@ Jellyfin failure.
 6. Open the plugin's configuration page from the dashboard — it should show the digest
    settings, the SMTP server settings, a password section and the tests (see "SMTP delivery").
 7. In Dashboard → Scheduled Tasks, confirm a task named "Send Email Digest" appears
-   under the "Email Digest" category, and can be run manually (it currently logs one
-   line and completes immediately; it sends no email and touches no media).
+   under the "Email Digest" category, and can be run manually (while the digest is
+   disabled it does nothing; in dry run it sends nothing).
 
 Only the Phase 1 skeleton has been verified against a live 10.11.8 server. Nothing added
-since, including the administrator page and its API, has been run on a real server; see
-`docs/phase3-live-verification.md` and `docs/phase5-live-verification.md`.
+since, including the administrator page, the user page and their APIs, has been run on a real server; see
+`docs/phase3-live-verification.md`, `docs/phase5-live-verification.md`, `docs/phase6-live-verification.md` and
+`docs/phase7-live-verification.md`. For upgrading from an earlier build and rolling back, see
+`docs/administrator-guide.md`.
