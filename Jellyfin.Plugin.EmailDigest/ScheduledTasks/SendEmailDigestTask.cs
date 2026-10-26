@@ -21,6 +21,11 @@ namespace Jellyfin.Plugin.EmailDigest.ScheduledTasks;
 /// </remarks>
 public class SendEmailDigestTask : IScheduledTask
 {
+    /// <summary>
+    /// The task's stable key, used to find it among Jellyfin's scheduled tasks.
+    /// </summary>
+    public const string TaskKey = "EmailDigestSendTask";
+
     private readonly DigestRunner _runner;
     private readonly ILogger<SendEmailDigestTask> _logger;
 
@@ -40,7 +45,7 @@ public class SendEmailDigestTask : IScheduledTask
     public string Name => "Send Email Digest";
 
     /// <inheritdoc />
-    public string Key => "EmailDigestSendTask";
+    public string Key => TaskKey;
 
     /// <inheritdoc />
     public string Description => "Sends a multilingual email digest of newly added media to authorized users. Does nothing while the digest is disabled, and sends nothing in dry-run mode.";
