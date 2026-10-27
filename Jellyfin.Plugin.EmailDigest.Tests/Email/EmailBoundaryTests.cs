@@ -61,7 +61,10 @@ public sealed class EmailBoundaryTests
             Username = mode == SmtpSecurityMode.None ? string.Empty : Username,
             Password = password,
             SenderAddress = "digest@example.com",
-            TimeoutSeconds = 2
+            // Generous on purpose: none of these tests is about timing, and on a busy machine (the whole
+            // suite runs in parallel) the first MailKit exchange can take longer than a couple of seconds.
+            // Tests of real timeouts set their own short limits in MailKitEmailTransportTests.
+            TimeoutSeconds = 30
         };
     }
 
