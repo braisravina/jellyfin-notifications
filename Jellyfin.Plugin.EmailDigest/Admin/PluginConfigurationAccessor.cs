@@ -28,7 +28,9 @@ public sealed class PluginConfigurationAccessor : ISmtpConfigurationAccessor
             DigestDryRun = current.DigestDryRun,
             MaxEntriesPerSection = current.MaxEntriesPerSection,
             MaxEntriesPerDigest = current.MaxEntriesPerDigest,
-            MaxEpisodesPerSeries = current.MaxEpisodesPerSeries
+            MaxEpisodesPerSeries = current.MaxEpisodesPerSeries,
+            PublicBaseUrl = current.PublicBaseUrl,
+            VerificationLinkMinutes = current.VerificationLinkMinutes
         };
 
         foreach (var library in current.MonitoredLibraries)
